@@ -1,4 +1,4 @@
-// Main Application & React-style UI State Controller (Scene, Weather, HUD, Multi-Touch Mobile Controls)
+// Main Application & Studio Ghibli Scene Controller (HD Antialiased Renderer, Ghibli Sky & Clouds, Weather, HUD & Touch)
 (function() {
   'use strict';
 
@@ -7,41 +7,44 @@
   var BC = window.BikeController;
 
   var canvas = document.getElementById('scene');
-  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false });
+  var renderer = new THREE.WebGLRenderer({
+    canvas: canvas,
+    antialias: true,
+    powerPreference: 'high-performance'
+  });
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.08;
+  renderer.toneMappingExposure = 1.12;
 
   var scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0xe79a63, 0.0055);
+  scene.fog = new THREE.FogExp2(0xdff2e8, 0.0038);
 
-  var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
-  var PIXEL_SCALE = 0.4;
+  var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 550);
 
   function resize() {
     var w = window.innerWidth, h = window.innerHeight;
-    renderer.setPixelRatio(1);
-    renderer.setSize(Math.max(2, Math.round(w * PIXEL_SCALE)), Math.max(2, Math.round(h * PIXEL_SCALE)), false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', resize);
 
-  // Toon shading gradient
+  // Gradiente Cel-Shading suave estilo Studio Ghibli (sombras cálidas azuladas y luces crema)
   function makeToonGradient() {
     var c = document.createElement('canvas');
-    c.width = 6; c.height = 1;
+    c.width = 8; c.height = 1;
     var ctx = c.getContext('2d');
-    var shades = ['#1c1c1c', '#4a4a4a', '#7c7c7c', '#a8a8a8', '#cfcfcf', '#ffffff'];
+    var shades = ['#3a4454', '#526073', '#738296', '#98a6b8', '#c2ccd6', '#e3e8ed', '#f7f9fa', '#ffffff'];
     for (var i = 0; i < shades.length; i++) {
       ctx.fillStyle = shades[i];
       ctx.fillRect(i, 0, 1, 1);
     }
     var tex = new THREE.CanvasTexture(c);
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     return tex;
   }
@@ -51,41 +54,82 @@
     return new THREE.MeshToonMaterial(o);
   }
 
-  // Lights
-  var hemi = new THREE.HemisphereLight(0xffe3b0, 0x4f6a3f, 0.68);
+  // Iluminación cálida de verano estilo Miyazaki
+  var hemi = new THREE.HemisphereLight(0xfff8e7, 0x4d7c5b, 0.88);
   scene.add(hemi);
-  var sun = new THREE.DirectionalLight(0xffdca8, 1.65);
-  sun.position.set(60, 90, 30);
+  var sun = new THREE.DirectionalLight(0xfff1d0, 1.55);
+  sun.position.set(60, 95, 35);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1536, 1536);
+  sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 220;
-  sun.shadow.camera.left = -42;
-  sun.shadow.camera.right = 42;
-  sun.shadow.camera.top = 42;
-  sun.shadow.camera.bottom = -42;
+  sun.shadow.camera.far = 230;
+  sun.shadow.camera.left = -45;
+  sun.shadow.camera.right = 45;
+  sun.shadow.camera.top = 45;
+  sun.shadow.camera.bottom = -45;
   sun.shadow.camera.updateProjectionMatrix();
-  sun.shadow.bias = -0.0012;
-  sun.shadow.normalBias = 0.02;
+  sun.shadow.bias = -0.0008;
+  sun.shadow.normalBias = 0.015;
   scene.add(sun);
   scene.add(sun.target);
 
-  // Sky dome
-  (function buildSky() {
-    var skyGeo = new THREE.SphereGeometry(400, 24, 16);
+  // Cielo pintado estilo Studio Ghibli + Nubes Cúmulo 3D esponjosas en el horizonte
+  var cloudGroup = new THREE.Group();
+  (function buildGhibliSkyAndClouds() {
+    var skyGeo = new THREE.SphereGeometry(420, 32, 24);
     var pos = skyGeo.attributes.position;
-    var top = new THREE.Color(0x4a74ac);
-    var horizon = new THREE.Color(0xf6c088);
+    var zenith = new THREE.Color(0x1d63b8);
+    var midSky = new THREE.Color(0x56b4e9);
+    var horizon = new THREE.Color(0xfef9e7);
     var skyColors = [];
     for (var i = 0; i < pos.count; i++) {
-      var y = pos.getY(i) / 400;
-      var t = THREE.MathUtils.clamp(y * 1.1 + 0.15, 0, 1);
-      var c = horizon.clone().lerp(top, t);
+      var y = pos.getY(i) / 420;
+      var t = THREE.MathUtils.clamp(y * 1.25 + 0.08, 0, 1);
+      var c;
+      if (t < 0.35) {
+        c = horizon.clone().lerp(midSky, t / 0.35);
+      } else {
+        c = midSky.clone().lerp(zenith, (t - 0.35) / 0.65);
+      }
       skyColors.push(c.r, c.g, c.b);
     }
     skyGeo.setAttribute('color', new THREE.Float32BufferAttribute(skyColors, 3));
     var skyMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false });
     scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+    // Nubes cúmulo estilo Ghibli alrededor del cielo
+    var cloudLitMat = new THREE.MeshBasicMaterial({ color: 0xfffdf9, fog: false });
+    var cloudShadeMat = new THREE.MeshBasicMaterial({ color: 0xdceefb, fog: false });
+    var cloudCount = 14;
+    for (var ci = 0; ci < cloudCount; ci++) {
+      var cAngle = (ci / cloudCount) * Math.PI * 2 + (ci % 2) * 0.15;
+      var cDist = 230 + (ci % 3) * 35;
+      var cHeight = 42 + (ci % 4) * 16;
+      var singleCloud = new THREE.Group();
+      singleCloud.position.set(Math.sin(cAngle) * cDist, cHeight, Math.cos(cAngle) * cDist);
+      singleCloud.lookAt(0, cHeight, 0);
+
+      var puffs = [
+        [0, 0, 0, 18, true],
+        [-14, -3, 2, 13, true],
+        [15, -2, 1, 14, true],
+        [-7, 8, 2, 12, true],
+        [8, 7, 2, 11, true],
+        [0, -7, -2, 16, false],
+        [-13, -8, -1, 11, false],
+        [13, -7, -1, 12, false]
+      ];
+      for (var pi = 0; pi < puffs.length; pi++) {
+        var pf = puffs[pi];
+        var pGeo = new THREE.SphereGeometry(pf[3], 12, 10);
+        var pMesh = new THREE.Mesh(pGeo, pf[4] ? cloudLitMat : cloudShadeMat);
+        pMesh.position.set(pf[0], pf[1], pf[2]);
+        pMesh.scale.set(1.2, 0.85, 0.7);
+        singleCloud.add(pMesh);
+      }
+      cloudGroup.add(singleCloud);
+    }
+    scene.add(cloudGroup);
   })();
 
   // Build World, Road, Stations, Trick Park, Foliage & Motorcycle
@@ -101,11 +145,11 @@
   var WEATHER = ['sun', 'rain', 'snow'];
   var WEATHER_ICON = { sun: '☀', rain: '🌧', snow: '❄' };
   var weatherParams = {
-    sun:  { fog: 0xe79a63, fogDensity: 0.0055, hemiSky: 0xffe3b0, hemiGround: 0x4f6a3f, hemiI: 0.95, sunColor: 0xffdca8, sunI: 1.4, precip: 'none' },
-    rain: { fog: 0x5c6670, fogDensity: 0.01,   hemiSky: 0x9fb0c0, hemiGround: 0x33363c, hemiI: 0.55, sunColor: 0xcfd8e0, sunI: 0.55, precip: 'rain' },
-    snow: { fog: 0xd9e4ec, fogDensity: 0.008,  hemiSky: 0xe8f0f5, hemiGround: 0x8a93a0, hemiI: 0.8,  sunColor: 0xf0f5fa, sunI: 1.0, precip: 'snow' }
+    sun:  { fog: 0xdff2e8, fogDensity: 0.0038, hemiSky: 0xfff8e7, hemiGround: 0x4d7c5b, hemiI: 0.88, sunColor: 0xfff1d0, sunI: 1.55, precip: 'none' },
+    rain: { fog: 0x6c7d8c, fogDensity: 0.0085, hemiSky: 0xa8bac8, hemiGround: 0x3b4854, hemiI: 0.62, sunColor: 0xd8e2ec, sunI: 0.65, precip: 'rain' },
+    snow: { fog: 0xe6f0f5, fogDensity: 0.0065, hemiSky: 0xf0f7fa, hemiGround: 0x8d99ae, hemiI: 0.82, sunColor: 0xffffff, sunI: 1.05, precip: 'snow' }
   };
-  var weatherIdx = 0, weatherTimer = 0, WEATHER_CYCLE = 55, WEATHER_TRANSITION = 4, transT = 1;
+  var weatherIdx = 0, weatherTimer = 0, WEATHER_CYCLE = 60, WEATHER_TRANSITION = 4, transT = 1;
   var fromParams = weatherParams.sun, toParams = weatherParams.sun;
   var currentPrecip = 'none';
   var weatherPillEl = document.getElementById('weather-pill');
@@ -261,7 +305,7 @@
 
   // Camera drag / orbit
   var camOrbit = { yaw: 0, pitch: 0, idleTimer: 0 };
-  var BASE_PITCH = 0.42;
+  var BASE_PITCH = 0.36;
   var isDragging = false, dragLastX = 0, dragLastY = 0;
   function dragStart(x, y) { isDragging = true; dragLastX = x; dragLastY = y; camOrbit.idleTimer = 0; }
   function dragMove(x, y) {
@@ -269,7 +313,7 @@
     var dx = x - dragLastX, dy = y - dragLastY;
     dragLastX = x; dragLastY = y;
     camOrbit.yaw -= dx * 0.007;
-    camOrbit.pitch = THREE.MathUtils.clamp(camOrbit.pitch - dy * 0.005, -0.32, 0.55);
+    camOrbit.pitch = THREE.MathUtils.clamp(camOrbit.pitch - dy * 0.005, -0.28, 0.55);
     camOrbit.idleTimer = 0;
   }
   function dragEnd() { isDragging = false; }
@@ -300,16 +344,16 @@
     var speedFactor = started ? THREE.MathUtils.clamp(Math.abs(BC.physics.speed) / BC.BIKE.maxSpeed, 0, 1) : 0;
     var horizontal = BC.physics.heading + camOrbit.yaw + Math.PI;
     var vertical = BASE_PITCH + camOrbit.pitch;
-    var dist = 6.4 + speedFactor * 2.2;
+    var dist = 6.2 + speedFactor * 2.0;
     var cx = bike.position.x + Math.sin(horizontal) * Math.cos(vertical) * dist;
     var cz = bike.position.z + Math.cos(horizontal) * Math.cos(vertical) * dist;
-    var cy = bike.position.y + 1.1 + Math.sin(vertical) * dist;
+    var cy = bike.position.y + 1.15 + Math.sin(vertical) * dist;
     var camGroundH = WB.heightAt(cx, cz);
-    if (cy < camGroundH + 1.4) cy = camGroundH + 1.4;
+    if (cy < camGroundH + 1.35) cy = camGroundH + 1.35;
     camera.position.set(cx, cy, cz);
-    camera.lookAt(bike.position.x, bike.position.y + 1.05, bike.position.z);
+    camera.lookAt(bike.position.x, bike.position.y + 1.1, bike.position.z);
     sun.target.position.copy(bike.position);
-    sun.position.copy(bike.position).add(new THREE.Vector3(60, 90, 30));
+    sun.position.copy(bike.position).add(new THREE.Vector3(60, 95, 35));
   }
 
   // Score & Toast notifications
@@ -464,6 +508,7 @@
   function animate() {
     requestAnimationFrame(animate);
     var dt = Math.min(clock.getDelta(), 0.05);
+    cloudGroup.rotation.y += dt * 0.004;
     if (started) {
       var input = getInput();
       BC.updatePhysics(dt, input);
@@ -475,7 +520,6 @@
       updateHUD();
     }
     updateCamera(dt);
-    WB.updateBillboards(camera, BC.getBike());
     renderer.render(scene, camera);
   }
 

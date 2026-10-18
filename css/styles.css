@@ -1,15 +1,15 @@
 :root {
-  --bg: #1c140f;
-  --panel: rgba(28, 20, 15, 0.72);
-  --panel-strong: rgba(18, 13, 10, 0.92);
-  --border: rgba(255, 232, 196, 0.18);
-  --fg: #f4ead9;
-  --muted: #cdb89c;
-  --accent: #38bdf8;
-  --accent-soft: #7dd3fc;
-  --font-display: 'Rajdhani', sans-serif;
+  --bg: #1e2d24;
+  --panel: rgba(24, 34, 28, 0.74);
+  --panel-strong: rgba(18, 26, 22, 0.92);
+  --border: rgba(255, 244, 214, 0.24);
+  --fg: #fdf8ee;
+  --muted: #d8ccb8;
+  --accent: #f59e0b;
+  --accent-soft: #fcd34d;
+  --font-display: 'Quicksand', 'Rajdhani', sans-serif;
   --font-body: 'Inter', sans-serif;
-  --font-pixel: 'Press Start 2P', 'Rajdhani', sans-serif;
+  --font-pixel: 'Quicksand', 'Rajdhani', sans-serif;
   color-scheme: dark;
 }
 
@@ -39,9 +39,6 @@ canvas#scene {
   width: 100%;
   height: 100%;
   touch-action: none;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
 }
 
 #hud {
@@ -74,68 +71,73 @@ canvas#scene {
 .speedo {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 10px 16px;
-  backdrop-filter: blur(6px);
-  min-width: 104px;
+  backdrop-filter: blur(10px);
+  min-width: 108px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 .speedo-value {
-  font-family: var(--font-pixel);
-  font-size: 1.5rem;
-  font-weight: 400;
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 700;
   color: var(--accent-soft);
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
 .speedo-unit {
-  font-size: .6rem;
-  letter-spacing: .1em;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .08em;
   color: var(--muted);
   text-transform: uppercase;
   margin-left: 4px;
 }
 
 .turbo-label {
-  font-size: .58rem;
-  letter-spacing: .1em;
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .08em;
   color: var(--muted);
   text-transform: uppercase;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .turbo-track {
-  width: 104px;
+  width: 108px;
   height: 8px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, .12);
+  background: rgba(255, 255, 255, .14);
   overflow: hidden;
   margin-top: 4px;
 }
 
 .turbo-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
+  background: linear-gradient(90deg, #38bdf8, #7dd3fc);
   width: 100%;
   transition: width .1s linear;
 }
 
 .score-value {
-  font-family: var(--font-pixel);
-  font-size: 1rem;
-  color: #9be37b;
-  margin-top: 4px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: #a7f3d0;
+  margin-top: 2px;
 }
 
 .route-pill {
   background: linear-gradient(90deg, var(--accent), var(--accent-soft));
-  color: #0d1b24;
-  font-family: var(--font-pixel);
-  font-size: .55rem;
-  padding: 7px 12px;
+  color: #1c140a;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: .72rem;
+  padding: 6px 14px;
   border-radius: 999px;
-  box-shadow: 0 6px 18px rgba(56, 189, 248, .4);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, .35);
 }
 
 .weather-pill {
