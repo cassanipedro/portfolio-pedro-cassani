@@ -34,6 +34,8 @@ canvas#scene{display:block;width:100%;height:100%;touch-action:none;image-render
 .score-value{font-family:var(--font-pixel);font-size:1rem;color:#9be37b;margin-top:4px;}
 .route-pill{background:linear-gradient(90deg,var(--accent),var(--accent-soft));color:#0d1b24;font-family:var(--font-pixel);font-size:.55rem;padding:7px 12px;border-radius:999px;box-shadow:0 6px 18px rgba(56,189,248,.4);}
 .weather-pill{background:var(--panel);border:1px solid var(--border);border-radius:999px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;backdrop-filter:blur(6px);}
+.contact-pill{display:inline-block;margin-top:8px;background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-family:var(--font-display);font-size:.68rem;color:var(--accent-soft);text-decoration:none;backdrop-filter:blur(6px);pointer-events:auto;white-space:nowrap;}
+.contact-pill:hover{filter:brightness(1.2);}
 
 #hint{position:absolute;bottom:max(22px,env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:8px 18px;font-family:var(--font-display);font-size:.78rem;letter-spacing:.04em;color:var(--fg);opacity:1;transition:opacity 1s ease;white-space:nowrap;text-align:center;}
 #hint.fade{opacity:0;}
@@ -89,6 +91,8 @@ canvas#scene{display:block;width:100%;height:100%;touch-action:none;image-render
   .speedo{min-width:84px;padding:8px 12px;}
   .speedo-value{font-size:1.2rem;}
   .turbo-track{width:84px;}
+  .contact-pill{font-size:0;padding:6px 10px;}
+  .contact-pill::before{content:'✉ Contacto';font-size:.68rem;}
 }
 </style>
 
@@ -106,6 +110,7 @@ canvas#scene{display:block;width:100%;height:100%;touch-action:none;image-render
         <div class="score-value" id="score-value">0</div>
       </div>
       <div class="route-pill" id="route-pill" hidden>¡Ruta rápida!</div>
+      <a class="contact-pill" id="contact-pill" href="mailto:cassanipedro01@gmail.com">✉ cassanipedro01@gmail.com</a>
     </div>
     <div class="hud-topright">
       <div class="corner-row">
@@ -721,6 +726,40 @@ function isOnRoute(){
   return false;
 }
 
+// ---------- Drivable platforms (grind rail bridge, landing box) ----------
+var PLATFORMS = [];
+function addRailPlatform(cx, cz, heading, totalLength, rampLen, width, height){
+  PLATFORMS.push({
+    cx:cx, cz:cz, sin:Math.sin(heading), cos:Math.cos(heading),
+    halfLen: totalLength/2, halfWid: width/2, rampLen: rampLen, height: height,
+    baseH: heightAt(cx,cz)
+  });
+}
+function platformHeightAt(x,z){
+  var best = null;
+  for(var i=0;i<PLATFORMS.length;i++){
+    var p = PLATFORMS[i];
+    var dx = x-p.cx, dz = z-p.cz;
+    var along = dx*p.sin + dz*p.cos;
+    var across = dx*p.cos - dz*p.sin;
+    if(Math.abs(across) > p.halfWid) continue;
+    var totalLength = p.halfLen*2;
+    var distFromStart = along + p.halfLen;
+    if(distFromStart < 0 || distFromStart > totalLength) continue;
+    var h;
+    if(distFromStart < p.rampLen){
+      h = p.height * (distFromStart/p.rampLen);
+    } else if(distFromStart > totalLength - p.rampLen){
+      h = p.height * ((totalLength-distFromStart)/p.rampLen);
+    } else {
+      h = p.height;
+    }
+    var worldH = p.baseH + h;
+    if(best===null || worldH>best) best = worldH;
+  }
+  return best;
+}
+
 // ---------- Ramps ----------
 var RAMPS = [];
 function buildRamp(x,z,heading,power){
@@ -763,25 +802,54 @@ function buildStationSign(center, text, colorHex, dz){
   group.add(banner);
   scene.add(group);
 }
-function buildGrindRail(x,z,heading,length){
+function buildGrindRail(cx,cz,heading,totalLength,rampLen,deckHeight){
   var group = new THREE.Group();
-  var h = heightAt(x,z);
-  group.position.set(x,h,z);
+  var h = heightAt(cx,cz);
+  group.position.set(cx,h,cz);
   group.rotation.y = heading;
-  var railMat = toonMat(0x8d939c);
-  var rail = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,length,8), railMat);
-  rail.rotation.z = Math.PI/2;
-  rail.position.set(0,1.05,0);
-  rail.castShadow = true;
-  group.add(rail);
+  var deckW = 1.15;
+  var flatLen = totalLength - rampLen*2;
+  var halfLen = totalLength/2;
+  var slopeAngle = Math.atan2(deckHeight, rampLen);
+  var deckMat = toonMat(0x8d939c);
+  var rampMat = toonMat(0x6b6f76);
   var legMat = toonMat(0x3a3f46);
+
+  var deck = new THREE.Mesh(new THREE.BoxGeometry(deckW,0.18,flatLen), deckMat);
+  deck.position.set(0,deckHeight,0);
+  deck.castShadow = true; deck.receiveShadow = true;
+  group.add(deck);
+
+  var rampIn = new THREE.Mesh(new THREE.BoxGeometry(deckW,0.18,rampLen/Math.cos(slopeAngle)), rampMat);
+  rampIn.position.set(0,deckHeight/2,-(flatLen/2+rampLen/2));
+  rampIn.rotation.x = -slopeAngle;
+  rampIn.castShadow = true; rampIn.receiveShadow = true;
+  group.add(rampIn);
+
+  var rampOut = new THREE.Mesh(new THREE.BoxGeometry(deckW,0.18,rampLen/Math.cos(slopeAngle)), rampMat);
+  rampOut.position.set(0,deckHeight/2,(flatLen/2+rampLen/2));
+  rampOut.rotation.x = slopeAngle;
+  rampOut.castShadow = true; rampOut.receiveShadow = true;
+  group.add(rampOut);
+
   for(var i=-1;i<=1;i+=2){
-    var leg = new THREE.Mesh(new THREE.BoxGeometry(0.16,1.05,0.16), legMat);
-    leg.position.set(i*length*0.4,0.52,0);
+    var leg = new THREE.Mesh(new THREE.BoxGeometry(0.14,deckHeight,0.14), legMat);
+    leg.position.set(0, deckHeight/2, i*flatLen*0.32);
     leg.castShadow = true;
     group.add(leg);
+    var railBar = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,totalLength*0.96,8), legMat);
+    railBar.rotation.x = Math.PI/2;
+    railBar.position.set(i*deckW*0.56, deckHeight+0.22, 0);
+    group.add(railBar);
   }
+
+  var sign = makeLabelSprite('!', '#7dd3fc');
+  sign.scale.set(1.3,1.3,1);
+  sign.position.set(0,deckHeight+1.4,-(halfLen-0.3));
+  group.add(sign);
+
   scene.add(group);
+  addRailPlatform(cx,cz,heading,totalLength,rampLen,1.6,deckHeight);
 }
 function buildLandingBox(x,z,size,height){
   var group = new THREE.Group();
@@ -797,6 +865,7 @@ function buildLandingBox(x,z,size,height){
   trim.position.set(0,height+0.07,0);
   group.add(trim);
   scene.add(group);
+  addRailPlatform(x,z,0,size,0.4,size,height);
   return h;
 }
 function buildStairsDown(x,z,heading,fromHeight,steps){
@@ -826,7 +895,7 @@ function initTrickPark(){
   var rampX = tp.x-8, rampZ = tp.z-2;
   var rampHeading = Math.atan2(tp.x-rampX, tp.z-rampZ);
   buildRamp(rampX, rampZ, rampHeading, 1.2);
-  buildGrindRail(tp.x-2, tp.z+2.4, rampHeading, 5.5);
+  buildGrindRail(tp.x-10, tp.z+9, rampHeading, 6.5, 2.0, 1.0);
   var boxX = tp.x+5, boxZ = tp.z+1, boxH = 1.6;
   buildLandingBox(boxX, boxZ, 4.6, boxH);
   buildStairsDown(boxX, boxZ+2.4, rampHeading, boxH, 5);
@@ -1665,7 +1734,8 @@ function updateBikeMesh(dt){
     physics.yVel -= GRAVITY*dt;
     physics.y += physics.yVel*dt;
     physics.airTime += dt;
-    var g = heightAt(physics.x,physics.z)+B.baseOffset;
+    var platH = platformHeightAt(physics.x,physics.z);
+    var g = (platH!==null ? Math.max(platH, heightAt(physics.x,physics.z)) : heightAt(physics.x,physics.z))+B.baseOffset;
     if(physics.y<=g && physics.yVel<0){
       physics.airborne = false;
       physics.y = g;
@@ -1674,10 +1744,11 @@ function updateBikeMesh(dt){
   } else {
     var fS = slopeAt(physics.x+Math.sin(physics.heading)*0.95, physics.z+Math.cos(physics.heading)*0.95);
     var rS = slopeAt(physics.x-Math.sin(physics.heading)*0.75, physics.z-Math.cos(physics.heading)*0.75);
-    var groundH = slopeAt(physics.x,physics.z).h;
+    var platH2 = platformHeightAt(physics.x,physics.z);
+    var groundH = platH2!==null ? Math.max(platH2, slopeAt(physics.x,physics.z).h) : slopeAt(physics.x,physics.z).h;
     var targetY = groundH+B.baseOffset;
     physics.y += (targetY-physics.y)*Math.min(1,10*dt);
-    var targetPitch = Math.atan2(rS.h-fS.h,1.7) - physics.wheelie*0.5;
+    var targetPitch = THREE.MathUtils.clamp(Math.atan2(rS.h-fS.h,1.7), -0.5, 0.5) - physics.wheelie*0.5;
     physics.pitch += (targetPitch-physics.pitch)*Math.min(1,8*dt);
   }
 
@@ -1720,6 +1791,8 @@ function updateCamera(dt){
   var cx = bike.position.x + Math.sin(horizontal)*Math.cos(vertical)*dist;
   var cz = bike.position.z + Math.cos(horizontal)*Math.cos(vertical)*dist;
   var cy = bike.position.y + 1.1 + Math.sin(vertical)*dist;
+  var camGroundH = heightAt(cx,cz);
+  if(cy < camGroundH+1.4) cy = camGroundH+1.4;
   camera.position.set(cx,cy,cz);
   camera.lookAt(bike.position.x, bike.position.y+1.05, bike.position.z);
   sun.target.position.copy(bike.position);
