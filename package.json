@@ -1,0 +1,20 @@
+{
+  "name": "portfolio-pedro-cassani",
+  "version": "2.0.0",
+  "description": "Portfolio 3D interactivo (Sendero Cumbre) de Pedro Cassani — Desarrollador de Sistemas Ágil",
+  "main": "js/ui/PortfolioHUD.js",
+  "scripts": {
+    "start": "python server.py",
+    "dev": "python server.py"
+  },
+  "keywords": [
+    "portfolio",
+    "threejs",
+    "webgl",
+    "python",
+    "javascript",
+    "pedro-cassani"
+  ],
+  "author": "Pedro Cassani <cassanipedro01@gmail.com>",
+  "license": "MIT"
+}
