@@ -1,4 +1,4 @@
-// Motorcycle 3D Loader (Studio Ghibli Style + Twin Exhaust Turbo Flames + Animated Rider), Suspension & Responsive Mechanics
+// Motorcycle 3D Loader (Honda Africa Twin HRC Tricolor Style + Green Helmet Rider + Twin Exhaust Turbo Flames + Ramp-to-Grind Super Trick)
 window.BikeController = (function() {
   'use strict';
 
@@ -31,6 +31,7 @@ window.BikeController = (function() {
     pitch: 0, roll: 0, turbo: 1,
     turboActive: false, throttle: 0,
     airborne: false, yVel: 0, airTime: 0,
+    grinding: false, grindTime: 0, grindScored: false,
     trickRotation: 0, driftAccum: 0,
     onRoute: false, wheelie: 0, wheelieAccum: 0,
     climbSlope: 0, jumpCooldown: 0, skidTimer: 0,
@@ -45,7 +46,7 @@ window.BikeController = (function() {
   var scarfNodes = [];
   var brakeLightMat = null;
 
-  // Sistemas de Llamas de Fuego para el Turbo (3D + Luz + Partículas de Fuego)
+  // Sistemas de Llamas de Fuego para el Turbo y Chispas de Grind (3D + Luz + Partículas)
   var exhaustNozzles = [];
   var turboFlameLight = null;
   var flameTex = null;
@@ -80,100 +81,154 @@ window.BikeController = (function() {
     return { pivot: pivot, center: center };
   }
 
-  // Construcción de detalles mecánicos de alta calidad para la moto, escapes dobles con llamas 3D y piloto Ghibli
-  function buildGhibliRiderAndDetails(bikeGroup, toonGrad) {
+  // Construcción estilo Honda CRF1100L Africa Twin (HRC Tricolor: Blanco Perla, Rojo Rally, Azul Dakar y Horquilla/Llantas Doradas) + Piloto con Casco Verde
+  function buildAfricaTwinAndRider(bikeGroup, toonGrad) {
     function gMat(color, extra) {
       return new THREE.MeshToonMaterial(Object.assign({ color: color, gradientMap: toonGrad }, extra || {}));
     }
 
+    var hrcWhiteMat = gMat(0xfdfcfa);
+    var hrcRedMat = gMat(0xd9261c);
+    var hrcBlueMat = gMat(0x1d4ed8);
+    var showaGoldMat = gMat(0xe5b842);
     var chromeMat = gMat(0xe2e8f0);
-    var darkMetalMat = gMat(0x282c34);
+    var aluBashMat = gMat(0xcbd5e1);
+    var darkMetalMat = gMat(0x22262e);
     var copperMat = gMat(0xd97742);
-    var goldMat = gMat(0xe9c46a);
-    var redSpringMat = gMat(0xe63946);
 
-    // 1. Faro delantero cálido con aro cromado + visera + velocímetro doble retro + espejos
-    var bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.145, 0.08, 16), chromeMat);
-    bezel.rotation.x = Math.PI / 2;
-    bezel.position.set(0, 0.88, 1.05);
-    bikeGroup.add(bezel);
+    // 1. Carenado frontal alto Adventure y Doble Faro LED característico de la Honda Africa Twin
+    var rallyTower = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.36, 0.32), hrcWhiteMat);
+    rallyTower.position.set(0, 0.92, 0.92);
+    rallyTower.rotation.x = -0.18;
+    rallyTower.castShadow = true;
+    bikeGroup.add(rallyTower);
 
-    var headlight = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 14, 12),
-      new THREE.MeshBasicMaterial({ color: 0xfff5b8 })
-    );
-    headlight.scale.set(1.05, 0.95, 0.5);
-    headlight.position.set(0, 0.88, 1.08);
-    bikeGroup.add(headlight);
+    // Franjas laterales Azul HRC y Rojo Grand Prix en el carenado Adventure
+    [-0.195, 0.195].forEach(function(sx) {
+      var blueShroud = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.32, 0.48), hrcBlueMat);
+      blueShroud.position.set(sx, 0.78, 0.62);
+      blueShroud.rotation.x = 0.22;
+      bikeGroup.add(blueShroud);
 
-    // Doble reloj velocímetro / tacómetro en el manubrio
-    [-0.075, 0.075].forEach(function(gx) {
-      var gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.05, 12), chromeMat);
-      gauge.rotation.x = -0.6;
-      gauge.position.set(gx, 1.04, 0.72);
-      bikeGroup.add(gauge);
+      var redShroud = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.16, 0.52), hrcRedMat);
+      redShroud.position.set(sx, 0.86, 0.52);
+      redShroud.rotation.x = 0.15;
+      bikeGroup.add(redShroud);
     });
 
-    // Horquilla telescópica cromada delantera y amortiguadores traseros rojos
-    [-0.11, 0.11].forEach(function(fx) {
-      var fork = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.022, 0.72, 10), chromeMat);
-      fork.rotation.x = 0.36;
-      fork.position.set(fx, 0.62, 0.82);
-      bikeGroup.add(fork);
+    // Guardabarros delantero elevado tipo Rally en Blanco HRC
+    var frontBeak = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.06, 0.38), hrcWhiteMat);
+    frontBeak.position.set(0, 0.72, 1.06);
+    frontBeak.rotation.x = 0.18;
+    bikeGroup.add(frontBeak);
 
-      // Amortiguador trasero espiralado
-      var shock = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.42, 10), redSpringMat);
+    // Doble Faro LED frontal gemelo (sello distintivo de la Africa Twin) con aros DRL ámbar/blanco
+    [-0.088, 0.088].forEach(function(lx) {
+      var drlRing = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.078, 0.078, 0.05, 14),
+        new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+      );
+      drlRing.rotation.x = Math.PI / 2;
+      drlRing.position.set(lx, 0.90, 1.08);
+      bikeGroup.add(drlRing);
+
+      var ledLens = new THREE.Mesh(
+        new THREE.SphereGeometry(0.064, 12, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      ledLens.scale.set(1.0, 0.9, 0.45);
+      ledLens.position.set(lx, 0.90, 1.10);
+      bikeGroup.add(ledLens);
+    });
+
+    // Parabrisas alto vertical estilo Rally Dakar + barra GPS/Roadbook
+    var visorMat = new THREE.MeshBasicMaterial({
+      color: 0xdbeafe,
+      transparent: true,
+      opacity: 0.48,
+      side: THREE.DoubleSide
+    });
+    var visor = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.21, 0.24, 0.44, 14, 1, true, -Math.PI * 0.32, Math.PI * 0.64),
+      visorMat
+    );
+    visor.rotation.x = -0.28;
+    visor.position.set(0, 1.16, 0.88);
+    bikeGroup.add(visor);
+
+    // Pantalla TFT Rally / GPS detrás del parabrisas
+    var tftScreen = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.11, 0.03),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+    );
+    tftScreen.rotation.x = -0.35;
+    tftScreen.position.set(0, 1.06, 0.76);
+    bikeGroup.add(tftScreen);
+
+    // Cubrepuños (Handguards) blancos HRC en el manubrio ancho Adventure
+    [-0.30, 0.30].forEach(function(hx) {
+      var handguard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.075, 0.06), hrcWhiteMat);
+      handguard.position.set(hx, 1.02, 0.64);
+      handguard.rotation.y = hx > 0 ? -0.22 : 0.22;
+      bikeGroup.add(handguard);
+    });
+
+    // Horquilla telescópica invertida DORADA Showa + Cubrecarter de aluminio (Skid Plate)
+    [-0.115, 0.115].forEach(function(fx) {
+      var upperFork = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.028, 0.52, 12), showaGoldMat);
+      upperFork.rotation.x = 0.34;
+      upperFork.position.set(fx, 0.72, 0.79);
+      bikeGroup.add(upperFork);
+
+      var lowerFork = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.020, 0.42, 10), chromeMat);
+      lowerFork.rotation.x = 0.34;
+      lowerFork.position.set(fx, 0.44, 0.90);
+      bikeGroup.add(lowerFork);
+
+      // Amortiguador trasero Showa rojo
+      var shock = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.42, 10), hrcRedMat);
       shock.rotation.x = -0.42;
-      shock.position.set(fx * 1.25, 0.56, -0.58);
+      shock.position.set(fx * 1.2, 0.56, -0.58);
       bikeGroup.add(shock);
     });
 
-    // Parabrisas translúcido estilo café-racer Ghibli
-    var visorMat = new THREE.MeshBasicMaterial({
-      color: 0xbae6fd,
-      transparent: true,
-      opacity: 0.52,
-      side: THREE.DoubleSide
-    });
-    var visor = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.32, 14, 1, true, -Math.PI * 0.35, Math.PI * 0.7), visorMat);
-    visor.rotation.x = -0.55;
-    visor.position.set(0, 1.06, 0.82);
-    bikeGroup.add(visor);
+    // Cubrecarter de aluminio (Bash Plate) bajo el motor bicilíndrico de la Africa Twin
+    var bashPlate = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.58), aluBashMat);
+    bashPlate.position.set(0, 0.28, 0.18);
+    bashPlate.rotation.x = -0.12;
+    bikeGroup.add(bashPlate);
 
-    // Luz de freno trasera reactiva
+    // Luz de freno LED trasera
     brakeLightMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
     var tailLight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.075, 0.06), brakeLightMat);
-    tailLight.position.set(0, 0.88, -1.06);
+    tailLight.position.set(0, 0.90, -1.06);
     bikeGroup.add(tailLight);
 
-    // 2. ESCAPES DOBLES CROMADOS + LLAMAS 3D DE FUEGO DEL TURBO
+    // 2. ESCAPES ELEVADOS ADVENTURE + LLAMAS 3D DE FUEGO DEL TURBO
     exhaustNozzles = [];
     var coreFlameMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.95 });
     var midFlameMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.88 });
     var outerFlameMat = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 0.78 });
 
     [-0.175, 0.175].forEach(function(ex) {
-      // Colector de bronce desde el motor
       var headerPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.65, 10), copperMat);
       headerPipe.rotation.x = Math.PI / 2 + 0.12;
       headerPipe.position.set(ex * 0.88, 0.38, -0.25);
       bikeGroup.add(headerPipe);
 
-      // Silenciador trasero cromado inclinado hacia arriba
       var mufflerGroup = new THREE.Group();
-      mufflerGroup.position.set(ex, 0.52, -0.82);
-      mufflerGroup.rotation.x = 0.16;
+      mufflerGroup.position.set(ex, 0.58, -0.82);
+      mufflerGroup.rotation.x = 0.20;
 
-      var mufflerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.044, 0.58, 14), chromeMat);
+      var mufflerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.048, 0.58, 14), chromeMat);
       mufflerBody.rotation.x = Math.PI / 2;
       mufflerGroup.add(mufflerBody);
 
-      var mufflerTip = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 0.1, 14), darkMetalMat);
+      var mufflerTip = new THREE.Mesh(new THREE.CylinderGeometry(0.050, 0.058, 0.11, 14), darkMetalMat);
       mufflerTip.rotation.x = Math.PI / 2;
       mufflerTip.position.z = -0.31;
       mufflerGroup.add(mufflerTip);
 
-      // Conos de fuego 3D multicapa que salen de cada escape al activar el Turbo
       var flamePivot = new THREE.Group();
       flamePivot.position.set(0, 0, -0.35);
       flamePivot.visible = false;
@@ -202,22 +257,22 @@ window.BikeController = (function() {
         coreCone: coreCone,
         midCone: midCone,
         outerCone: outerCone,
-        localTip: new THREE.Vector3(ex, 0.56, -1.16)
+        localTip: new THREE.Vector3(ex, 0.62, -1.16)
       });
     });
 
-    // Luz dinámica naranja de fuego que ilumina el asfalto cuando salen llamas del turbo
     turboFlameLight = new THREE.PointLight(0xff5e00, 0, 6.0, 1.8);
     turboFlameLight.position.set(0, 0.62, -1.45);
     bikeGroup.add(turboFlameLight);
 
-    // 3. Piloto estilo Studio Ghibli articulado (se inclina en las curvas y se agacha con el turbo)
+    // 3. Piloto estilo Studio Ghibli con CASCO VERDE ESMERALDA y bufanda animada
     riderGroup = new THREE.Group();
     riderGroup.position.set(0, 0.82, -0.08);
 
     var jacketMat = gMat(0x2b5876);
     var pantsMat = gMat(0x3d405b);
-    var helmetMat = gMat(0xfdf8ee);
+    // Casco verde vibrante pedido por el usuario
+    var helmetGreenMat = gMat(0x229954);
     var leatherMat = gMat(0x6f4518);
     var scarfMat = gMat(0xe63946, { side: THREE.DoubleSide });
 
@@ -257,20 +312,27 @@ window.BikeController = (function() {
 
     riderHead = new THREE.Group();
     riderHead.position.set(0, 0.66, 0.24);
-    var helmet = new THREE.Mesh(new THREE.SphereGeometry(0.175, 16, 14), helmetMat);
+    var helmet = new THREE.Mesh(new THREE.SphereGeometry(0.178, 16, 14), helmetGreenMat);
     helmet.castShadow = true;
     riderHead.add(helmet);
 
-    var stripe = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.36), gMat(0xe63946));
+    // Visera off-road verde en la parte superior del casco Adventure
+    var helmetPeak = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.025, 0.14), helmetGreenMat);
+    helmetPeak.position.set(0, 0.11, 0.14);
+    helmetPeak.rotation.x = 0.18;
+    riderHead.add(helmetPeak);
+
+    // Franja blanca deportiva sobre el casco verde
+    var stripe = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.36, 0.36), hrcWhiteMat);
     riderHead.add(stripe);
 
-    var goggleStrap = new THREE.Mesh(new THREE.CylinderGeometry(0.178, 0.178, 0.045, 16), leatherMat);
+    var goggleStrap = new THREE.Mesh(new THREE.CylinderGeometry(0.180, 0.180, 0.045, 16), leatherMat);
     goggleStrap.rotation.x = -0.15;
     goggleStrap.position.y = 0.02;
     riderHead.add(goggleStrap);
 
     [-0.065, 0.065].forEach(function(gx) {
-      var rim = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.04, 12), goldMat);
+      var rim = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.04, 12), showaGoldMat);
       rim.rotation.x = Math.PI / 2;
       rim.position.set(gx, 0.03, 0.16);
       riderHead.add(rim);
@@ -319,7 +381,7 @@ window.BikeController = (function() {
     bike.userData.rearWheelLocalPos = new THREE.Vector3(0, BIKE.baseOffset, -1.1);
     bike.userData.ready = false;
 
-    buildGhibliRiderAndDetails(bike, toonGrad);
+    buildAfricaTwinAndRider(bike, toonGrad);
 
     var loader = new THREE.GLTFLoader();
     loader.parse(window.b64ToArrayBuffer(window.BIKE_GLB_B64), '', function(gltf) {
@@ -328,7 +390,7 @@ window.BikeController = (function() {
 
       var box = new THREE.Box3().setFromObject(model);
       var size = box.getSize(new THREE.Vector3());
-      var targetLength = 2.5;
+      var targetLength = 2.55;
       var scl = targetLength / Math.max(size.z, 0.001);
 
       var frontWheelNode = model.getObjectByName('test005_test025');
@@ -336,14 +398,12 @@ window.BikeController = (function() {
       var frontInfo = frontWheelNode ? makeWheelPivot(model, frontWheelNode) : null;
       var rearInfo = rearWheelNode ? makeWheelPivot(model, rearWheelNode) : null;
 
-      var ghibliRed = new THREE.Color(0xd63426);
-      var ghibliCream = new THREE.Color(0xfdf8ee);
+      // Esquema Tricolor oficial Honda Africa Twin HRC: Blanco Perla + Rojo Grand Prix + Azul Dakar
+      var hrcWhite = new THREE.Color(0xfdfcfa);
+      var hrcRed = new THREE.Color(0xd9261c);
+      var hrcBlue = new THREE.Color(0x1d4ed8);
       var ghibliChrome = new THREE.Color(0xd8e2ec);
-      var ghibliTire = new THREE.Color(0x22252a);
-      var bodyPanelNames = ['test008_test041', 'test001_test017', 'test_test001'];
-      var accentNames = ['test011_test046', 'test002_test010'];
-      var chromeNames = ['test013_test047', 'test012_test047', 'test007_test029'];
-      var wheelNames = ['test005_test025', 'test003_test025'];
+      var ghibliTire = new THREE.Color(0x1e2229);
 
       model.traverse(function(o) {
         if (o.isMesh) {
@@ -352,21 +412,22 @@ window.BikeController = (function() {
           if (o.geometry) {
             o.geometry.computeVertexNormals();
           }
-          var col = new THREE.Color(0x2f343d);
-          if (bodyPanelNames.indexOf(o.name) !== -1) col = ghibliRed.clone();
-          else if (accentNames.indexOf(o.name) !== -1) col = ghibliCream.clone();
-          else if (chromeNames.indexOf(o.name) !== -1) col = ghibliChrome.clone();
-          else if (wheelNames.indexOf(o.name) !== -1) col = ghibliTire.clone();
+          var col = new THREE.Color(0x2b303a);
+          if (o.name === 'test008_test041' || o.name === 'test_test001') col = hrcWhite.clone();
+          else if (o.name === 'test001_test017') col = hrcRed.clone();
+          else if (o.name === 'test011_test046' || o.name === 'test002_test010') col = hrcBlue.clone();
+          else if (o.name === 'test013_test047' || o.name === 'test012_test047' || o.name === 'test007_test029') col = ghibliChrome.clone();
+          else if (o.name === 'test005_test025' || o.name === 'test003_test025') col = ghibliTire.clone();
           o.material = new THREE.MeshToonMaterial({ color: col, gradientMap: toonGrad });
         }
       });
 
-      // Llantas doradas con rayos y discos de freno ventilados
-      var rimMat = new THREE.MeshToonMaterial({ color: 0xe9c46a, gradientMap: toonGrad });
+      // Llantas Doradas de Rayos características de la Honda Africa Twin
+      var goldRimMat = new THREE.MeshToonMaterial({ color: 0xe5b842, gradientMap: toonGrad });
       var discMat = new THREE.MeshToonMaterial({ color: 0xcbd5e1, gradientMap: toonGrad });
       [frontInfo, rearInfo].forEach(function(wInfo) {
         if (!wInfo) return;
-        var rim = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.42, 16), rimMat);
+        var rim = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.74, 0.42, 18), goldRimMat);
         rim.rotation.z = Math.PI / 2;
         wInfo.pivot.add(rim);
 
@@ -374,9 +435,9 @@ window.BikeController = (function() {
         brakeDisc.rotation.z = Math.PI / 2;
         wInfo.pivot.add(brakeDisc);
 
-        for (var sp = 0; sp < 4; sp++) {
-          var spoke = new THREE.Mesh(new THREE.BoxGeometry(0.46, 1.38, 0.08), rimMat);
-          spoke.rotation.x = (sp / 4) * Math.PI;
+        for (var sp = 0; sp < 6; sp++) {
+          var spoke = new THREE.Mesh(new THREE.BoxGeometry(0.46, 1.40, 0.06), goldRimMat);
+          spoke.rotation.x = (sp / 6) * Math.PI;
           wInfo.pivot.add(spoke);
         }
       });
@@ -403,11 +464,11 @@ window.BikeController = (function() {
       plateC.width = 64; plateC.height = 32;
       var pctx = plateC.getContext('2d');
       pctx.fillStyle = '#1d242b'; pctx.fillRect(0, 0, 64, 32);
-      pctx.strokeStyle = '#e9c46a'; pctx.lineWidth = 2.5; pctx.strokeRect(2, 2, 60, 28);
+      pctx.strokeStyle = '#e5b842'; pctx.lineWidth = 2.5; pctx.strokeRect(2, 2, 60, 28);
       pctx.fillStyle = '#fdf8ee';
-      pctx.font = 'bold 15px monospace';
+      pctx.font = 'bold 14px monospace';
       pctx.textAlign = 'center'; pctx.textBaseline = 'middle';
-      pctx.fillText('</DEV>', 32, 18);
+      pctx.fillText('CRF1100', 32, 17);
       var plateTex = new THREE.CanvasTexture(plateC);
       var plateMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(0.34, 0.17),
@@ -446,7 +507,7 @@ window.BikeController = (function() {
     }
     scene.add(dustGroup);
 
-    // Textura radial de fuego brillante para las partículas del Turbo
+    // Textura radial de fuego brillante para las partículas del Turbo y chispas del Grind
     var fCnv = document.createElement('canvas');
     fCnv.width = fCnv.height = 64;
     var fCtx = fCnv.getContext('2d');
@@ -460,7 +521,7 @@ window.BikeController = (function() {
     flameTex = new THREE.CanvasTexture(fCnv);
 
     var flameGroup = new THREE.Group();
-    for (var fi = 0; fi < 40; fi++) {
+    for (var fi = 0; fi < 45; fi++) {
       var fmat = new THREE.SpriteMaterial({
         map: flameTex,
         transparent: true,
@@ -562,7 +623,7 @@ window.BikeController = (function() {
     spr.material.opacity = 0.55 * strength;
   }
 
-  function spawnTurboFlameParticle(worldPos, heading) {
+  function spawnTurboFlameParticle(worldPos, heading, isSpark) {
     if (!flamePool.length) return;
     var spr = flamePool[flameCursor];
     flameCursor = (flameCursor + 1) % flamePool.length;
@@ -573,13 +634,13 @@ window.BikeController = (function() {
       (Math.random() - 0.5) * 0.08,
       (Math.random() - 0.5) * 0.08
     ));
-    var jetSpeed = 6.5 + Math.random() * 5.5;
-    spr.userData.vx = backX * jetSpeed + (Math.random() - 0.5) * 1.4;
-    spr.userData.vy = 0.4 + Math.random() * 1.2;
-    spr.userData.vz = backZ * jetSpeed + (Math.random() - 0.5) * 1.4;
+    var jetSpeed = isSpark ? (4.5 + Math.random() * 4.0) : (6.5 + Math.random() * 5.5);
+    spr.userData.vx = backX * jetSpeed + (Math.random() - 0.5) * (isSpark ? 3.5 : 1.4);
+    spr.userData.vy = (isSpark ? 1.5 : 0.4) + Math.random() * 1.8;
+    spr.userData.vz = backZ * jetSpeed + (Math.random() - 0.5) * (isSpark ? 3.5 : 1.4);
     spr.userData.maxLife = 0.18 + Math.random() * 0.12;
     spr.userData.life = spr.userData.maxLife;
-    spr.scale.set(0.28, 0.28, 1);
+    spr.scale.set(isSpark ? 0.22 : 0.28, isSpark ? 0.22 : 0.28, 1);
     spr.material.opacity = 0.95;
   }
 
@@ -594,20 +655,26 @@ window.BikeController = (function() {
   }
 
   function checkRamps() {
-    if (physics.airborne) return;
+    if (physics.airborne || physics.grinding) return;
     var ramps = WB.getRamps();
     for (var i = 0; i < ramps.length; i++) {
       var rp = ramps[i];
       var dx = physics.x - rp.pos.x, dz = physics.z - rp.pos.z;
-      if (Math.hypot(dx, dz) < 3.4) {
+      if (Math.hypot(dx, dz) < 2.6) {
         var bfx = Math.sin(physics.heading), bfz = Math.cos(physics.heading);
         var rfx = Math.sin(rp.heading), rfz = Math.cos(rp.heading);
-        if (bfx * rfx + bfz * rfz > 0.3 && Math.abs(physics.speed) > 7) {
+        if (bfx * rfx + bfz * rfz > 0.35 && Math.abs(physics.speed) > 6) {
           physics.airborne = true;
           physics.yVel = RAMP_BASE_POWER * (BIKE.jumpPower / 10) * rp.power;
           physics.airTime = 0;
           physics.trickRotation = 0;
           physics.climbSlope = 0;
+          // Si es la rampa de la Zona de Trucos central, alinea suavemente hacia el riel de Grind (x=0)
+          if (rp.isGrindLauncher) {
+            physics.x *= 0.35;
+            physics.heading = rp.heading;
+            physics.speed = Math.max(Math.abs(physics.speed), 17.5);
+          }
           spawnDust(bike.position, 1);
           if (window.SoundEngine) window.SoundEngine.playJump();
           return;
@@ -616,10 +683,67 @@ window.BikeController = (function() {
     }
   }
 
+  // Mecánica de SUPER TRUCO: Aterrizar y deslizarse sobre el Riel de Grind central
+  function checkAndUpdateGrind(dt, wheelieInput) {
+    var rails = WB.getGrindRails ? WB.getGrindRails() : [];
+    if (!rails.length) return false;
+    var rail = rails[0];
+
+    if (physics.grinding) {
+      var dirZ = Math.cos(physics.heading) >= 0 ? 1 : -1;
+      physics.heading = dirZ > 0 ? 0 : Math.PI;
+      physics.x += (rail.x - physics.x) * Math.min(1, 20 * dt);
+      physics.y = rail.y + 0.06;
+      physics.yVel = 0;
+      physics.speed = Math.max(Math.abs(physics.speed), 18.0);
+      physics.z += dirZ * physics.speed * dt;
+      physics.grindTime += dt;
+
+      // Chispas doradas bajo el cubrecarter mientras grindea
+      if (Math.random() < 0.85) {
+        spawnTurboFlameParticle(new THREE.Vector3(physics.x, physics.y + 0.15, physics.z), physics.heading, true);
+      }
+
+      if (!physics.grindScored && physics.grindTime > 0.12) {
+        physics.grindScored = true;
+        onScoreCallback(500, '⚡ ¡SUPER TRUCO: GRIND!');
+        if (window.SoundEngine) window.SoundEngine.playFanfare();
+      }
+
+      // Al terminar el riel o apretar salto al final, despega con estilo
+      if (physics.z < rail.zStart - 0.3 || physics.z > rail.zEnd + 0.3) {
+        physics.grinding = false;
+        physics.airborne = true;
+        physics.yVel = 6.2;
+        physics.airTime = 0;
+        onScoreCallback(150, '🔥 ¡Salida de Grind perfecta!');
+        if (window.SoundEngine) window.SoundEngine.playJump();
+      }
+      return true;
+    }
+
+    // Enganchar al riel cuando viene en el aire (o entrando desde la rampa) sobre el corredor del riel
+    var inZ = physics.z >= rail.zStart - 0.4 && physics.z <= rail.zEnd + 0.4;
+    var inX = Math.abs(physics.x - rail.x) <= rail.halfWidth;
+    if (inZ && inX && physics.airborne && physics.yVel <= 2.5 && Math.abs(physics.y - rail.y) <= 0.95) {
+      physics.grinding = true;
+      physics.airborne = false;
+      physics.grindTime = 0;
+      physics.grindScored = false;
+      physics.trickRotation = 0;
+      physics.y = rail.y + 0.06;
+      physics.yVel = 0;
+      if (window.SoundEngine) window.SoundEngine.playLand();
+      return true;
+    }
+
+    return false;
+  }
+
   // Salto chico y divertido únicamente en la cresta de las 2 lomitas suaves, sin perder control de la ruta
   function checkHillLaunch(dt) {
     if (physics.jumpCooldown > 0) physics.jumpCooldown = Math.max(0, physics.jumpCooldown - dt);
-    if (physics.airborne || physics.jumpCooldown > 0) return;
+    if (physics.airborne || physics.grinding || physics.jumpCooldown > 0) return;
 
     var spd = Math.abs(physics.speed);
     var dir = physics.speed >= 0 ? 1 : -1;
@@ -659,7 +783,6 @@ window.BikeController = (function() {
     } else if (physics.airTime > 0.28) {
       onScoreCallback(Math.round(physics.airTime * 80), '¡Salto!');
     }
-    // Compresión realista de suspensión al aterrizar
     physics.suspVel = -2.4;
     physics.trickRotation = 0;
     physics.airTime = 0;
@@ -668,7 +791,7 @@ window.BikeController = (function() {
   }
 
   function resolveCollisions() {
-    if (physics.airborne) return;
+    if (physics.airborne || physics.grinding) return;
     var obstacles = WB.getObstacles();
     for (var i = 0; i < obstacles.length; i++) {
       var o = obstacles[i];
@@ -699,15 +822,19 @@ window.BikeController = (function() {
       brakeLightMat.color.setHex(input.back && !input.forward ? 0xffbe0b : 0xff3b30);
     }
 
-    // Turbo activo también en el aire si se mantiene apretado
     var turboActive = false;
-    if (input.turbo && physics.turbo > 0.04 && (throttle > 0 || physics.airborne)) {
+    if (input.turbo && physics.turbo > 0.04 && (throttle > 0 || physics.airborne || physics.grinding)) {
       turboActive = true;
       physics.turbo = Math.max(0, physics.turbo - 0.52 * dt);
     } else {
       physics.turbo = Math.min(1, physics.turbo + 0.30 * dt);
     }
     physics.turboActive = turboActive;
+
+    // Comprobar si está grindeando o enganchando el riel central
+    if (checkAndUpdateGrind(dt, wheelieInput)) {
+      return;
+    }
 
     if (physics.airborne) {
       if (wheelieInput) physics.trickRotation += TRICK_SPIN_RATE * dt;
@@ -722,6 +849,7 @@ window.BikeController = (function() {
       }
       physics.onRoute = WB.isOnRoute(physics.x, physics.z);
       physics.wheelie = Math.max(0, physics.wheelie - dt * 2.5);
+      checkAndUpdateGrind(dt, wheelieInput);
       return;
     }
 
@@ -749,7 +877,6 @@ window.BikeController = (function() {
     physics.speed = THREE.MathUtils.clamp(physics.speed, MAX_REV, maxSpeed);
 
     var speedRatio = THREE.MathUtils.clamp(Math.abs(physics.speed) / 7.5, 0, 1);
-    // Agarre progresivo para doblar con precisión tanto a baja como a alta velocidad
     var highSpeedGrip = 1.0 - THREE.MathUtils.clamp((Math.abs(physics.speed) - 24) / 45, 0, 0.22);
     physics.heading += physics.steer * TURN_RATE * speedRatio * highSpeedGrip * dt * (physics.speed < 0 ? -1 : 1);
 
@@ -803,11 +930,12 @@ window.BikeController = (function() {
 
   function updateBikeMesh(dt) {
     var B = BIKE;
-    // Dinámica de suspensión (resorte + amortiguador)
     physics.suspVel += (-physics.suspOffset * 48 - physics.suspVel * 10) * dt;
     physics.suspOffset = THREE.MathUtils.clamp(physics.suspOffset + physics.suspVel * dt, -0.18, 0.14);
 
-    if (physics.airborne) {
+    if (physics.grinding) {
+      physics.pitch += (-0.08 - physics.pitch) * Math.min(1, 14 * dt);
+    } else if (physics.airborne) {
       physics.yVel -= GRAVITY * dt;
       physics.y += physics.yVel * dt;
       physics.airTime += dt;
@@ -833,20 +961,23 @@ window.BikeController = (function() {
 
     bike.position.set(physics.x, physics.y, physics.z);
 
-    var targetRoll = physics.airborne
-      ? physics.roll * 0.9
-      : (-physics.steer * 0.42 * B.lean * THREE.MathUtils.clamp(Math.abs(physics.speed) / 13, 0, 1));
+    var targetRoll = physics.grinding
+      ? 0.24
+      : (physics.airborne
+        ? physics.roll * 0.9
+        : (-physics.steer * 0.42 * B.lean * THREE.MathUtils.clamp(Math.abs(physics.speed) / 13, 0, 1)));
     physics.roll += (targetRoll - physics.roll) * Math.min(1, 7.5 * dt);
 
     var visualPitch = physics.airborne ? (physics.pitch + physics.trickRotation) : physics.pitch;
+    // Al grindear cruza levemente el cuadro de la moto estilo 50-50 / boardslide
+    var visualYaw = physics.grinding ? (physics.heading + 0.26) : physics.heading;
     bike.rotation.order = 'YXZ';
-    bike.rotation.set(visualPitch, physics.heading, physics.roll);
+    bike.rotation.set(visualPitch, visualYaw, physics.roll);
 
     var wheelSpin = physics.speed * dt / 0.38;
     bike.userData.frontWheel.rotation.x -= wheelSpin;
     bike.userData.rearWheel.rotation.x -= wheelSpin;
 
-    // Animar postura del piloto (inclinación en curvas + agachado aerodinámico con el Turbo)
     if (riderGroup) {
       var leanIn = -physics.steer * 0.22 * THREE.MathUtils.clamp(Math.abs(physics.speed) / 10, 0, 1);
       riderGroup.rotation.z += (leanIn - riderGroup.rotation.z) * Math.min(1, 10 * dt);
@@ -858,7 +989,6 @@ window.BikeController = (function() {
       }
     }
 
-    // Animar la bufanda del piloto con el viento y el turbo
     var now = performance.now() * 0.008;
     var windFactor = 0.25 + THREE.MathUtils.clamp(Math.abs(physics.speed) / 22, 0, 1.2) * (physics.turboActive ? 1.35 : 0.85);
     for (var si = 0; si < scarfNodes.length; si++) {
@@ -867,7 +997,6 @@ window.BikeController = (function() {
       sn.rotation.y = -physics.steer * 0.18 + Math.cos(now * 1.9 - si * 0.8) * 0.13 * windFactor;
     }
 
-    // Animar LLAMAS DE FUEGO 3D y chispas en ambos escapes cuando el Turbo está activo
     if (physics.turboActive) {
       bike.updateMatrixWorld();
       var pulse = 0.82 + Math.random() * 0.45;
@@ -881,7 +1010,7 @@ window.BikeController = (function() {
         noz.outerCone.rotation.z = -Math.random() * Math.PI;
 
         var tipWorld = noz.localTip.clone().applyMatrix4(bike.matrixWorld);
-        spawnTurboFlameParticle(tipWorld, physics.heading);
+        spawnTurboFlameParticle(tipWorld, physics.heading, false);
       }
       if (turboFlameLight) {
         turboFlameLight.intensity = 2.4 * pulse;
@@ -895,7 +1024,7 @@ window.BikeController = (function() {
       }
     }
 
-    if (!physics.airborne && Math.abs(physics.speed) > 3 && Math.random() < 0.6) {
+    if (!physics.airborne && !physics.grinding && Math.abs(physics.speed) > 3 && Math.random() < 0.6) {
       var rearWorld = bike.userData.rearWheelLocalPos.clone().applyMatrix4(bike.matrixWorld);
       spawnDust(rearWorld, Math.min(1, Math.abs(physics.speed) / 20) + (Math.abs(physics.steer) > 0.5 ? 0.4 : 0));
     }
@@ -914,7 +1043,6 @@ window.BikeController = (function() {
       }
     }
 
-    // Actualizar estela de fuego del Turbo
     for (var fi = 0; fi < flamePool.length; fi++) {
       var fspr = flamePool[fi];
       if (fspr.userData.life > 0) {
@@ -1001,6 +1129,7 @@ window.BikeController = (function() {
     physics.speed = 0; physics.steer = 0; physics.pitch = 0; physics.roll = 0; physics.turbo = 1;
     physics.turboActive = false; physics.throttle = 0;
     physics.airborne = false; physics.yVel = 0; physics.airTime = 0; physics.trickRotation = 0;
+    physics.grinding = false; physics.grindTime = 0; physics.grindScored = false;
     physics.driftAccum = 0; physics.wheelie = 0; physics.wheelieAccum = 0;
     physics.climbSlope = 0; physics.jumpCooldown = 0;
     physics.suspOffset = 0; physics.suspVel = 0;

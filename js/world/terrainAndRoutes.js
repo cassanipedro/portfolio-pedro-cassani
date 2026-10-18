@@ -13,6 +13,7 @@ window.WorldBuilder = (function() {
   var ROUTES = [];
   var PLATFORMS = [];
   var RAMPS = [];
+  var GRIND_RAILS = [];
   var STATIONS = [];
   var TREE_SPAWN_POINTS = [];
   var billboardGroups = [];
@@ -50,7 +51,9 @@ window.WorldBuilder = (function() {
     var n1 = Math.sin(x * 0.045 + 1.3) * Math.cos(z * 0.04) * 1.4;
     var n2 = Math.sin(x * 0.09 - z * 0.08) * 0.55;
     var n3 = Math.sin((x + z) * 0.022) * 2.1;
-    return mountain * 4.8 + n3 * (0.25 + mountain * 0.1) + n1 + n2;
+    // Explanada verde suave en el centro de la pista (r < 22) para la Zona de Trucos (Rampa + Grind) y Base de Datos
+    var centerSmooth = THREE.MathUtils.clamp((r - 16) / 10, 0.06, 1.0);
+    return (mountain * 4.8 + n3 * (0.25 + mountain * 0.1) + n1 + n2) * centerSmooth;
   }
 
   // En la ruta mantenemos el camino súper suave y manejable, con solo las 2 lomitas suaves
@@ -380,10 +383,19 @@ window.WorldBuilder = (function() {
       var angle = (i / 5) * Math.PI * 2;
       var x = Math.sin(angle) * STATION_RADIUS;
       var z = Math.cos(angle) * STATION_RADIUS;
+      // La Estación 3 (id=2: Catalogador de Maestros · Base de datos Oracle SQL) se ubica en la explanada central
+      // junto a la Zona de Trucos, pero corrida a un costado (x = 14.5, z = 0) para no molestar la línea de Rampa + Grind
+      var triggerRadius = 6.5;
+      if (i === 2) {
+        x = 14.5;
+        z = 0;
+        triggerRadius = 4.6;
+      }
       var c = PD.STATION_CONTENT[i];
       return {
         id: i,
         pos: new THREE.Vector3(x, heightAt(x, z), z),
+        triggerRadius: triggerRadius,
         title: c.title,
         eyebrow: c.eyebrow,
         desc: c.desc,
@@ -493,16 +505,29 @@ window.WorldBuilder = (function() {
           });
           buildStationSign(scene, toonMat, st.pos, 'Almacén de Logística', SIGN_COLOR, 7.5);
         } else if (st.id === 2) {
-          OBSTACLES.push({ x: st.pos.x - 1.6, z: st.pos.z - 1.4, r: 1.3 });
-          var rack = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.6, 1.1), darkMat);
-          rack.position.set(-1.6, 1.3, -1.4); rack.castShadow = true;
-          pGroup.add(rack);
-          for (var li = 0; li < 5; li++) {
-            var light = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.1, 0.07), toonMat(li % 2 ? 0x52b788 : 0xff9f1c, { emissive: li % 2 ? 0x52b788 : 0xff9f1c, emissiveIntensity: 0.6 }));
-            light.position.set(-1.6, 0.5 + li * 0.45, -0.95); pGroup.add(light);
-          }
-          var rack2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.8), darkMat);
-          rack2.position.set(2.0, 0.8, 1.3); rack2.castShadow = true; pGroup.add(rack2);
+          // Centro de Datos Oracle SQL ubicado en la explanada central pero fuera del carril de Rampa + Grind
+          OBSTACLES.push({ x: st.pos.x + 1.8, z: st.pos.z, r: 1.6 });
+          var basePad = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.5, 0.28, 18), toonMat(0x6c7a89));
+          basePad.position.set(1.5, 0.14, 0);
+          basePad.receiveShadow = true;
+          pGroup.add(basePad);
+
+          [-1.1, 0, 1.1].forEach(function(rz, rIdx) {
+            var rack = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.1, 0.9), darkMat);
+            rack.position.set(1.8, 1.65, rz);
+            rack.castShadow = true;
+            pGroup.add(rack);
+            for (var li = 0; li < 5; li++) {
+              var ledColor = (li + rIdx) % 2 ? 0x52b788 : 0x38bdf8;
+              var light = new THREE.Mesh(
+                new THREE.BoxGeometry(0.08, 0.12, 0.65),
+                toonMat(ledColor, { emissive: ledColor, emissiveIntensity: 0.75 })
+              );
+              light.position.set(1.18, 0.6 + li * 0.5, rz);
+              pGroup.add(light);
+            }
+          });
+          buildStationSign(scene, toonMat, st.pos, 'Oracle SQL · Base de Datos', '#5bd3c0', 4.6);
         } else if (st.id === 3) {
           OBSTACLES.push({ x: st.pos.x - 3.0, z: st.pos.z + 0.8, r: 3.2 });
           var tank = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 5.6, 20), greyMat);
@@ -743,31 +768,117 @@ window.WorldBuilder = (function() {
     return best;
   }
 
+  // Zona de Trucos en el centro verde del mapa (x = 0, z = 0): Pequeña Rampa de despegue + Riel de Grind ("Super Truco")
   function buildTrickPark(scene, toonMat) {
-    function buildRamp(x, z, heading, power) {
-      var h = heightAt(x, z);
-      var group = new THREE.Group();
-      group.position.set(x, h, z);
-      group.rotation.y = heading;
-      var rampMat = toonMat(0xb07d4f);
-      var deck = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.4, 7), rampMat);
-      deck.rotation.x = -0.36;
-      deck.position.set(0, 1.15, 0.5);
-      deck.castShadow = true; deck.receiveShadow = true;
-      group.add(deck);
-      scene.add(group);
-      RAMPS.push({ pos: new THREE.Vector3(x, h, z), heading: heading, power: power || 0.9 });
+    var centerH = heightAt(0, 0);
+    var parkGroup = new THREE.Group();
+    parkGroup.position.set(0, centerH, 0);
+
+    var woodDeckMat = toonMat(0xb87d4b);
+    var darkFrameMat = toonMat(0x2d3748);
+    var railMetalMat = toonMat(0x38bdf8, { emissive: 0x0284c7, emissiveIntensity: 0.35 });
+    var goldAccentMat = toonMat(0xfbbf24, { emissive: 0xf59e0b, emissiveIntensity: 0.25 });
+
+    // Sendero guía en el suelo para alinear fácilmente la moto hacia la Rampa + Grind
+    var stripGeo = new THREE.PlaneGeometry(3.2, 30);
+    var stripMat = new THREE.MeshBasicMaterial({
+      color: 0x3b4d3e,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
+    });
+    var stripMesh = new THREE.Mesh(stripGeo, stripMat);
+    stripMesh.rotation.x = -Math.PI / 2;
+    stripMesh.position.y = 0.02;
+    parkGroup.add(stripMesh);
+
+    // Función para crear una pequeña rampa (kicker) que lanza exactamente hacia el riel de Grind
+    function buildKickerRamp(zPos, heading, power) {
+      var rGroup = new THREE.Group();
+      rGroup.position.set(0, 0, zPos);
+      rGroup.rotation.y = heading;
+
+      var deck = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.24, 4.2), woodDeckMat);
+      deck.rotation.x = -0.26;
+      deck.position.set(0, 0.52, 0);
+      deck.castShadow = true;
+      deck.receiveShadow = true;
+      rGroup.add(deck);
+
+      // Bordes laterales amarillos para ver la rampa claramente
+      [-1.85, 1.85].forEach(function(sx) {
+        var railEdge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.32, 4.2), goldAccentMat);
+        railEdge.rotation.x = -0.26;
+        railEdge.position.set(sx, 0.58, 0);
+        rGroup.add(railEdge);
+      });
+
+      parkGroup.add(rGroup);
+      var worldY = heightAt(0, zPos);
+      RAMPS.push({
+        pos: new THREE.Vector3(0, worldY, zPos),
+        heading: heading,
+        power: power || 0.72,
+        isGrindLauncher: true
+      });
     }
 
-    var angle = (0.5 / 5) * Math.PI * 2;
-    var radius = 64;
-    var tp = { x: Math.sin(angle) * radius, z: Math.cos(angle) * radius };
-    var rampX = tp.x - 8, rampZ = tp.z - 2;
-    var rampHeading = Math.atan2(tp.x - rampX, tp.z - rampZ);
-    buildRamp(rampX, rampZ, rampHeading, 0.95);
-    var signCenter = { x: tp.x, z: tp.z - 10 };
-    buildStationSign(scene, toonMat, signCenter, 'Zona de Trucos', SIGN_COLOR, 0);
-    TRICK_SIGN_POS = { x: signCenter.x, z: signCenter.z };
+    // Dos pequeñas rampas enfrentadas al riel central para poder saltar y grindear viniendo desde el Sur o desde el Norte
+    buildKickerRamp(-9.4, 0, 0.72);
+    buildKickerRamp(9.4, Math.PI, 0.72);
+
+    // Riel de Grind central elevado (de z = -6.2 a z = +6.2, largo = 12.4m, altura = 1.25m)
+    var railLength = 12.4;
+    var railHeight = 1.25;
+
+    // Tubo superior brillante de Grind
+    var topTube = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, railLength, 16), railMetalMat);
+    topTube.rotation.x = Math.PI / 2;
+    topTube.position.set(0, railHeight, 0);
+    topTube.castShadow = true;
+    parkGroup.add(topTube);
+
+    // Viga de acero inferior del riel
+    var underBeam = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, railLength), darkFrameMat);
+    underBeam.position.set(0, railHeight - 0.16, 0);
+    underBeam.castShadow = true;
+    parkGroup.add(underBeam);
+
+    // Franjas doradas laterales en la viga del riel
+    var sideStripe = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.07, railLength - 0.2), goldAccentMat);
+    sideStripe.position.set(0, railHeight - 0.15, 0);
+    parkGroup.add(sideStripe);
+
+    // Postes de soporte del riel
+    [-5.6, -2.8, 0, 2.8, 5.6].forEach(function(pz) {
+      var post = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, railHeight - 0.1, 10), darkFrameMat);
+      post.position.set(0, (railHeight - 0.1) / 2, pz);
+      post.castShadow = true;
+      parkGroup.add(post);
+
+      var foot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.12, 10), goldAccentMat);
+      foot.position.set(0, 0.06, pz);
+      parkGroup.add(foot);
+    });
+
+    scene.add(parkGroup);
+
+    // Registrar el Riel de Grind para la física de Super Truco en bikeController.js
+    GRIND_RAILS.push({
+      x: 0,
+      zStart: -6.2,
+      zEnd: 6.2,
+      y: centerH + railHeight,
+      halfWidth: 1.25
+    });
+
+    // Cartel indicador colocado a la izquierda (x = -8.5, z = -6.0) para no estorbar la carrera hacia la rampa
+    var signCenter = { x: -8.5, z: -6.0 };
+    buildStationSign(scene, toonMat, signCenter, 'Super Truco: Rampa + Grind', '#fbbf24', 0);
+    TRICK_SIGN_POS = { x: 0, z: 0 };
   }
 
   function makeInstancedPart(scene, geo, mat, transforms, castShadow) {
@@ -788,7 +899,7 @@ window.WorldBuilder = (function() {
     return mesh;
   }
 
-  // Árboles frondosos estilo Studio Ghibli (copas suaves multicapa, colores vivos de bosque Miyazaki y flores de pradera)
+  // Árboles frondosos estilo Studio Ghibli (dejando libre el prado central para la Zona de Trucos y Base de Datos)
   function buildTreesAndRocks(scene, toonMat) {
     var cell = 12.5;
     var half = 78;
@@ -801,7 +912,7 @@ window.WorldBuilder = (function() {
         var x = gx + cell * 0.5 + (Math.random() - 0.5) * cell * 0.82;
         var z = gz + cell * 0.5 + (Math.random() - 0.5) * cell * 0.82;
         var rad = Math.hypot(x, z);
-        if (rad < 15 || rad > 77) continue;
+        if (rad < 24 || rad > 77) continue;
         if (STATIONS.some(function(s) { return Math.hypot(s.pos.x - x, s.pos.z - z) < 12.5; })) continue;
         if (FINISH_LINE && Math.hypot(FINISH_LINE.pos.x - x, FINISH_LINE.pos.z - z) < 10) continue;
         if (nearRoute(x, z, 6.8)) continue;
@@ -826,12 +937,12 @@ window.WorldBuilder = (function() {
       }
     }
 
-    // Flores silvestres estilo pradera Ghibli alrededor del campo
+    // Flores silvestres estilo pradera Ghibli alrededor del campo (sin tapar la rampa central)
     for (var fi = 0; fi < 260; fi++) {
       var fx = (Math.random() - 0.5) * 145;
       var fz = (Math.random() - 0.5) * 145;
       var fr = Math.hypot(fx, fz);
-      if (fr < 12 || fr > 74 || nearRoute(fx, fz, 4.2)) continue;
+      if (fr < 18 || fr > 74 || nearRoute(fx, fz, 4.2)) continue;
       var fh = heightAt(fx, fz);
       if (fh > 4.5) continue;
       var fType = fi % 3 === 0 ? 'yellow' : (fi % 3 === 1 ? 'white' : 'pink');
@@ -841,7 +952,6 @@ window.WorldBuilder = (function() {
     var warmBarkMat = toonMat(0x6f4e37);
     var birchBarkMat = toonMat(0xe6dfd3);
 
-    // 1. Árbol Frondoso Ghibli (Estilo Totoro: tronco con raíces y 5 esferas suaves superpuestas en 3 tonos de verde)
     var oakTrunk = new THREE.CylinderGeometry(0.18, 0.34, 2.5, 10); oakTrunk.translate(0, 1.25, 0);
     var oakCanopyDeep = new THREE.SphereGeometry(1.65, 14, 12); oakCanopyDeep.scale(1.15, 0.88, 1.15); oakCanopyDeep.translate(0, 3.0, 0);
     var oakCanopyMidA = new THREE.SphereGeometry(1.35, 14, 12); oakCanopyMidA.translate(-0.75, 3.45, 0.35);
@@ -854,7 +964,6 @@ window.WorldBuilder = (function() {
     makeInstancedPart(scene, oakCanopyMidB, toonMat(0x48a860), transforms.oak);
     makeInstancedPart(scene, oakCanopyTop, toonMat(0x7fd16b), transforms.oak);
 
-    // 2. Pino / Ciprés Ghibli de montaña (capas redondeadas suaves en verde esmeralda y puntas iluminadas)
     var pineTrunk = new THREE.CylinderGeometry(0.12, 0.24, 3.0, 10); pineTrunk.translate(0, 1.5, 0);
     var pineT1 = new THREE.ConeGeometry(1.65, 2.3, 14); pineT1.translate(0, 3.2, 0);
     var pineT2 = new THREE.ConeGeometry(1.32, 2.0, 14); pineT2.translate(0, 4.45, 0);
@@ -867,7 +976,6 @@ window.WorldBuilder = (function() {
     makeInstancedPart(scene, pineT3, toonMat(0x40916c), transforms.pine);
     makeInstancedPart(scene, pineT4, toonMat(0x68b888), transforms.pine);
 
-    // 3. Árbol Dorado / Primavera Ghibli (tronco claro y follaje cálido dorado/verde lima)
     var sakTrunk = new THREE.CylinderGeometry(0.1, 0.19, 3.1, 10); sakTrunk.translate(0, 1.55, 0);
     var sakPuff1 = new THREE.SphereGeometry(1.35, 14, 12); sakPuff1.translate(0, 3.6, 0);
     var sakPuff2 = new THREE.SphereGeometry(1.05, 12, 10); sakPuff2.translate(0.55, 4.2, 0.25);
@@ -878,13 +986,11 @@ window.WorldBuilder = (function() {
     makeInstancedPart(scene, sakPuff2, toonMat(0xb5e48c), transforms.sakura);
     makeInstancedPart(scene, sakPuff3, toonMat(0xd9ed92), transforms.sakura);
 
-    // Rocas 3D esculpidas estilo Ghibli (reemplazan los cartones 2D pixelados)
     var rockGeo = new THREE.DodecahedronGeometry(0.85, 1);
     rockGeo.scale(1.25, 0.78, 1.05);
     rockGeo.translate(0, 0.35, 0);
     makeInstancedPart(scene, rockGeo, toonMat(0x7c8594), rockTransforms);
 
-    // Flores de pradera 3D
     var flowerGeo = new THREE.SphereGeometry(0.16, 6, 6);
     flowerGeo.scale(1, 0.55, 1);
     flowerGeo.translate(0, 0.12, 0);
@@ -908,6 +1014,7 @@ window.WorldBuilder = (function() {
     updateBillboards: updateBillboards,
     getObstacles: function() { return OBSTACLES; },
     getRamps: function() { return RAMPS; },
+    getGrindRails: function() { return GRIND_RAILS; },
     getStations: function() { return STATIONS; },
     getRoutes: function() { return ROUTES; },
     getTreeSpawnPoints: function() { return TREE_SPAWN_POINTS; },

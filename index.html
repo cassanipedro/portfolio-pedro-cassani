@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Portfolio Pedro Cassani · Sendero Cumbre</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="css/styles.css?v=6">
+  <link rel="stylesheet" href="css/styles.css?v=7">
 </head>
 <body>
   <div id="app">
@@ -35,7 +35,7 @@
       </div>
     </div>
 
-    <div id="hint">WASD moverte · MAYÚS turbo con llamas 🔥 · Cruzá el arco de META 🏁 para agendar reunión</div>
+    <div id="hint">WASD moverte · MAYÚS turbo 🔥 · Centro del mapa: Rampa + Grind ⚡ · Arco de META 🏁 para agendar reunión</div>
 
     <!-- Controles Mobile Ergonómicos (ubicados más arriba para manejo cómodo con ambos pulgares) -->
     <div id="touch-controls" hidden>
@@ -93,20 +93,14 @@
       </div>
     </div>
 
-    <!-- Popup de META: Agendar Reunión en Google Calendar + Panel de Aprobación de Pedro -->
+    <!-- Popup de META: Agendar Reunión en Google Calendar (invitación directa al Calendar y Mail de Pedro) -->
     <div id="finish-popup" hidden>
       <div class="popup-card finish-card">
         <button id="finish-close" type="button" aria-label="Cerrar">×</button>
         <div class="finish-badge">🏁 ¡LLEGASTE A LA META!</div>
         <h2>Agendá una Reunión con Pedro Cassani</h2>
-        <p class="finish-sub" id="finish-stats">Completaste el circuito · Conectate directo con mi Google Calendar indicando el motivo de la reunión para que pueda aceptarla o rechazarla.</p>
+        <p class="finish-sub" id="finish-stats">Completá el motivo de la reunión: se agregará a tu Google Calendar y le llegará la invitación por mail y directo al Google Calendar de Pedro para que la acepte.</p>
 
-        <div class="appt-tabs">
-          <button type="button" class="appt-tab active" data-tab="request">📅 Solicitar Reunión</button>
-          <button type="button" class="appt-tab" data-tab="pedro">✅ Panel de Pedro (<span id="pending-count">0</span>)</button>
-        </div>
-
-        <!-- Vista 1: Formulario para solicitar reunión y enviar invitación a Google Calendar -->
         <form id="appt-form" class="appt-pane">
           <div class="appt-row">
             <div class="appt-field">
@@ -150,28 +144,20 @@
 
           <div class="appt-field">
             <label for="appt-reason">Aclarar el motivo por el cual querés reunirte con Pedro *</label>
-            <textarea id="appt-reason" rows="3" required placeholder="Contame brevemente sobre tu proyecto, desafío técnico o propuesta para que Pedro evalúe y acepte la invitación en su Google Calendar..."></textarea>
+            <textarea id="appt-reason" rows="3" required placeholder="Contame sobre tu proyecto, desafío técnico o propuesta para que me llegue en la invitación de Google Calendar y por mail..."></textarea>
           </div>
 
           <div id="appt-feedback" class="appt-feedback" hidden></div>
 
           <div class="appt-actions">
             <button type="submit" class="btn-gcal" id="btn-submit-gcal">
-              📅 Agendar en Google Calendar (Enviar a Pedro)
+              📅 Agregar a Google Calendar y Enviar Invitación
             </button>
             <button type="button" class="btn-secondary" id="btn-submit-email">
-              ✉️ Enviar solicitud por Email
+              ✉️ Enviar también por Mail
             </button>
           </div>
         </form>
-
-        <!-- Vista 2: Bandeja de Pedro Cassani para Aceptar o Rechazar las solicitudes -->
-        <div id="pedro-pane" class="appt-pane" hidden>
-          <p class="pedro-intro">
-            Vista de <strong>Pedro Cassani</strong> (<code>cassanipedro01@gmail.com</code>). Revisá el motivo de cada solicitud y elegí <strong>Aceptar</strong> (confirma en Google Calendar) o <strong>Rechazar</strong>:
-          </p>
-          <div id="appt-list" class="appt-list"></div>
-        </div>
 
         <button id="finish-continue" type="button" class="btn-link-close">Seguir manejando por el circuito</button>
       </div>
@@ -181,7 +167,7 @@
       <div class="start-panel">
         <h1>Sendero Cumbre</h1>
         <p class="start-welcome">Bienvenido al portfolio de <strong>Pedro Cassani</strong>, un desarrollador de sistemas muy ágil que se adapta a todo tipo de desafíos. Especializado en mejorar sistemas legacy y generar soluciones creativas que agreguen valor al alcance de tus objetivos. Reconocido en la industria por ser un desarrollador rápido y ágil.</p>
-        <p class="start-sub">Arrastrá para ver la moto · Usá el Turbo con llamas 🔥 y llegá a la Meta 🏁 para agendar una reunión</p>
+        <p class="start-sub">Honda Africa Twin · Rampa + Grind en el centro ⚡ · Cruzá la Meta 🏁 para agendar en Google Calendar</p>
         <button id="start-btn" type="button">Arrancar moto</button>
       </div>
     </div>
@@ -197,7 +183,7 @@
           <span><span class="key">⇧</span>turbo 🔥</span>
           <span><span class="key">ESPACIO</span> o <span class="key">W</span>+<span class="key">S</span>willy / truco</span>
         </div>
-        <p class="drag-hint">Recorré las 5 estaciones, activá el turbo con llamas de fuego y cruzá el <strong>Arco de Meta 🏁</strong> para agendar una reunión en el Google Calendar de Pedro.</p>
+        <p class="drag-hint">En el <strong>centro verde del mapa</strong> tenés la <strong>Zona de Trucos (Rampa + Riel de Grind)</strong> y la estación de <strong>Base de Datos Oracle SQL</strong>. Cruzá el <strong>Arco de Meta 🏁</strong> para agendar una reunión en Google Calendar.</p>
         <p class="drag-hint" style="opacity:.6;font-size:.62rem;">Tocá ☀/🌧/❄ arriba a la derecha para probar el sonido bajito de lluvia o nieve.</p>
         <button id="help-continue" type="button">Entendido</button>
       </div>
@@ -209,11 +195,11 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <!-- Arquitectura modular del proyecto -->
-  <script src="js/data/bikeModel.js?v=6"></script>
-  <script src="js/data/portfolioData.js?v=6"></script>
-  <script src="js/audio/soundEngine.js?v=6"></script>
-  <script src="js/world/terrainAndRoutes.js?v=6"></script>
-  <script src="js/physics/bikeController.js?v=6"></script>
-  <script src="js/ui/PortfolioHUD.js?v=6"></script>
+  <script src="js/data/bikeModel.js?v=7"></script>
+  <script src="js/data/portfolioData.js?v=7"></script>
+  <script src="js/audio/soundEngine.js?v=7"></script>
+  <script src="js/world/terrainAndRoutes.js?v=7"></script>
+  <script src="js/physics/bikeController.js?v=7"></script>
+  <script src="js/ui/PortfolioHUD.js?v=7"></script>
 </body>
 </html>

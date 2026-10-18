@@ -1,4 +1,4 @@
-// Main Application & Studio Ghibli Scene Controller (HD Renderer, Sound Engine, Weather, Finish Line & Google Calendar)
+// Main Application & Studio Ghibli Scene Controller (HD Renderer, Sound Engine, Weather, Center Trick Park & Google Calendar Meta)
 (function() {
   'use strict';
 
@@ -8,7 +8,6 @@
   var SE = window.SoundEngine;
 
   var PEDRO_EMAIL = 'cassanipedro01@gmail.com';
-  var LOCAL_APPT_KEY = 'pedro_portfolio_appointments_v1';
 
   var canvas = document.getElementById('scene');
   var renderer = new THREE.WebGLRenderer({
@@ -135,7 +134,7 @@
     scene.add(cloudGroup);
   })();
 
-  // Build World, Road, Stations + Finish Line Arch, Trick Park, Foliage & Motorcycle
+  // Build World, Road, Stations + Finish Line Arch, Center Trick Park (Ramp + Grind), Foliage & Africa Twin Motorcycle
   WB.buildTerrain(scene, toonGrad);
   WB.buildStations(scene, toonGrad, toonMat);
   WB.buildCircuitRoad(scene, toonGrad, 0xffd166);
@@ -265,7 +264,6 @@
   // Input & Ergonomic Multi-Touch Mobile Controls
   var keys = {};
   window.addEventListener('keydown', function(e) {
-    // No capturar teclas de juego si el usuario está escribiendo en el formulario de reunión
     var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
     if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
     if (SE) SE.init();
@@ -374,7 +372,7 @@
         }
       }
     }
-    var targetFov = (started && BC.physics.turboActive) ? 58 : 50;
+    var targetFov = (started && (BC.physics.turboActive || BC.physics.grinding)) ? 58 : 50;
     if (Math.abs(camera.fov - targetFov) > 0.05) {
       camera.fov += (targetFov - camera.fov) * Math.min(1, 6 * dt);
       camera.updateProjectionMatrix();
@@ -463,18 +461,14 @@
   document.getElementById('popup-continue').addEventListener('click', function() { closeStationPopup(true); });
 
   // ============================================================================
-  // META (FINISH LINE) & GOOGLE CALENDAR APPOINTMENT + PEDRO APPROVAL SYSTEM
+  // META (FINISH LINE) & GOOGLE CALENDAR + EMAIL INVITATION TO PEDRO
   // ============================================================================
   var finishPopupEl = document.getElementById('finish-popup');
   var finishStatsEl = document.getElementById('finish-stats');
   var apptFormEl = document.getElementById('appt-form');
-  var pedroPaneEl = document.getElementById('pedro-pane');
-  var apptListEl = document.getElementById('appt-list');
-  var pendingCountEl = document.getElementById('pending-count');
   var apptFeedbackEl = document.getElementById('appt-feedback');
   var finishReachedOnce = false;
 
-  // Inicializar fecha por defecto a mañana
   (function initDefaultAppointmentDate() {
     var dateInput = document.getElementById('appt-date');
     if (!dateInput) return;
@@ -486,7 +480,6 @@
     dateInput.min = yyyy + '-' + mm + '-' + dd;
   })();
 
-  // Chips de motivo rápido
   document.querySelectorAll('.motive-chip').forEach(function(chip) {
     chip.addEventListener('click', function() {
       document.querySelectorAll('.motive-chip').forEach(function(c) { c.classList.remove('active'); });
@@ -499,23 +492,6 @@
         reasonEl.value = motive + ' — ' + reasonEl.value;
       }
       reasonEl.focus();
-    });
-  });
-
-  // Pestañas Solicitar Reunión vs Bandeja de Pedro
-  document.querySelectorAll('.appt-tab').forEach(function(tab) {
-    tab.addEventListener('click', function() {
-      document.querySelectorAll('.appt-tab').forEach(function(t) { t.classList.remove('active'); });
-      tab.classList.add('active');
-      var which = tab.getAttribute('data-tab');
-      if (which === 'pedro') {
-        apptFormEl.hidden = true;
-        pedroPaneEl.hidden = false;
-        loadAndRenderAppointments();
-      } else {
-        apptFormEl.hidden = false;
-        pedroPaneEl.hidden = true;
-      }
     });
   });
 
@@ -546,14 +522,14 @@
     var dates = formatGCalDateTime(data.date, data.time, data.duration);
     var title = 'Reunión Portfolio: ' + data.name + ' & Pedro Cassani';
     var details = [
-      'Solicitud de reunión generada al cruzar la Meta del Portfolio 3D (Sendero Cumbre).',
+      'Solicitud de reunión enviada desde el Portfolio 3D de Pedro Cassani (Sendero Cumbre).',
       '',
       '• Solicitante: ' + data.name,
-      '• Email: ' + data.email,
+      '• Email de contacto: ' + data.email,
       '• Motivo de la reunión:',
       data.reason,
       '',
-      'Nota: Pedro Cassani (' + PEDRO_EMAIL + ') recibirá esta invitación en Google Calendar para Aceptar o Rechazar la reunión.'
+      'Invitado: Pedro Cassani (' + PEDRO_EMAIL + ')'
     ].join('\n');
 
     var params = new URLSearchParams({
@@ -561,163 +537,10 @@
       text: title,
       dates: dates,
       details: details,
-      add: PEDRO_EMAIL + (data.email ? ',' + data.email : ''),
+      add: PEDRO_EMAIL,
       location: 'Google Meet / Videollamada'
     });
     return 'https://calendar.google.com/calendar/render?' + params.toString();
-  }
-
-  function getLocalAppointments() {
-    try {
-      var raw = localStorage.getItem(LOCAL_APPT_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveLocalAppointments(list) {
-    try {
-      localStorage.setItem(LOCAL_APPT_KEY, JSON.stringify(list));
-    } catch (e) {}
-  }
-
-  function saveAppointmentRecord(record, callback) {
-    var localList = getLocalAppointments();
-    localList.unshift(record);
-    saveLocalAppointments(localList.slice(0, 40));
-
-    fetch('/api/appointments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
-    })
-      .then(function(r) { return r.json(); })
-      .then(function(res) {
-        if (res && res.appointment) {
-          record.id = res.appointment.id;
-          saveLocalAppointments(localList);
-        }
-        if (callback) callback();
-      })
-      .catch(function() {
-        if (callback) callback();
-      });
-  }
-
-  function respondToAppointment(id, decision) {
-    var localList = getLocalAppointments();
-    var target = null;
-    localList.forEach(function(item) {
-      if (String(item.id) === String(id)) {
-        item.status = decision;
-        target = item;
-      }
-    });
-    saveLocalAppointments(localList);
-
-    fetch('/api/appointments/respond', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: id, decision: decision })
-    })
-      .then(function() { loadAndRenderAppointments(); })
-      .catch(function() { loadAndRenderAppointments(); });
-
-    if (target) {
-      if (decision === 'accepted') {
-        showToast('✅ Reunión aceptada por Pedro', 2200);
-        if (target.gcalUrl) {
-          window.open(target.gcalUrl, '_blank', 'noopener');
-        }
-      } else {
-        showToast('Reunión rechazada', 1800);
-      }
-    }
-  }
-
-  function loadAndRenderAppointments() {
-    fetch('/api/appointments')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (data && Array.isArray(data.appointments) && data.appointments.length > 0) {
-          saveLocalAppointments(data.appointments);
-          renderAppointmentList(data.appointments);
-        } else {
-          renderAppointmentList(getLocalAppointments());
-        }
-      })
-      .catch(function() {
-        renderAppointmentList(getLocalAppointments());
-      });
-  }
-
-  function renderAppointmentList(items) {
-    var pending = items.filter(function(i) { return i.status === 'pending'; }).length;
-    if (pendingCountEl) pendingCountEl.textContent = String(pending);
-
-    if (!apptListEl) return;
-    if (!items.length) {
-      apptListEl.innerHTML = '<div class="appt-item"><div class="appt-item-meta">Todavía no hay solicitudes registradas. Completá el formulario en la pestaña "Solicitar Reunión" para probar cómo las recibe Pedro.</div></div>';
-      return;
-    }
-
-    apptListEl.innerHTML = '';
-    items.forEach(function(item) {
-      var card = document.createElement('div');
-      card.className = 'appt-item';
-
-      var statusLabel = item.status === 'accepted'
-        ? '✓ Aceptada por Pedro'
-        : (item.status === 'rejected' ? '✕ Rechazada' : '⏳ Pendiente de Pedro');
-
-      var head = document.createElement('div');
-      head.className = 'appt-item-head';
-      var titleSpan = document.createElement('span');
-      titleSpan.className = 'appt-item-title';
-      titleSpan.textContent = item.name + (item.email ? ' (' + item.email + ')' : '');
-      var badgeSpan = document.createElement('span');
-      badgeSpan.className = 'appt-status ' + (item.status || 'pending');
-      badgeSpan.textContent = statusLabel;
-      head.appendChild(titleSpan);
-      head.appendChild(badgeSpan);
-
-      var meta = document.createElement('div');
-      meta.className = 'appt-item-meta';
-      meta.textContent = '📅 ' + item.date + ' a las ' + item.time + ' hs (' + item.duration + ' min)';
-
-      var reason = document.createElement('div');
-      reason.className = 'appt-item-reason';
-      reason.textContent = 'Motivo: "' + item.reason + '"';
-
-      var btns = document.createElement('div');
-      btns.className = 'appt-item-btns';
-
-      var btnAccept = document.createElement('button');
-      btnAccept.type = 'button';
-      btnAccept.className = 'btn-accept';
-      btnAccept.textContent = '✓ Pedro: Aceptar y Agendar en Google Calendar';
-      btnAccept.addEventListener('click', function() {
-        respondToAppointment(item.id, 'accepted');
-      });
-
-      var btnReject = document.createElement('button');
-      btnReject.type = 'button';
-      btnReject.className = 'btn-reject';
-      btnReject.textContent = '✕ Pedro: Rechazar';
-      btnReject.addEventListener('click', function() {
-        respondToAppointment(item.id, 'rejected');
-      });
-
-      btns.appendChild(btnAccept);
-      btns.appendChild(btnReject);
-
-      card.appendChild(head);
-      card.appendChild(meta);
-      card.appendChild(reason);
-      card.appendChild(btns);
-      apptListEl.appendChild(card);
-    });
   }
 
   function getFormData() {
@@ -728,14 +551,12 @@
     var duration = document.getElementById('appt-duration').value;
     var reason = document.getElementById('appt-reason').value.trim();
     return {
-      id: Date.now(),
       name: name,
       email: email,
       date: date,
       time: time,
       duration: duration,
-      reason: reason,
-      status: 'pending'
+      reason: reason
     };
   }
 
@@ -746,15 +567,12 @@
       showToast('Completá tu nombre, email y el motivo de la reunión', 2000);
       return;
     }
-    data.gcalUrl = buildGoogleCalendarUrl(data);
-    saveAppointmentRecord(data, function() {
-      loadAndRenderAppointments();
-    });
+    var gcalUrl = buildGoogleCalendarUrl(data);
 
     apptFeedbackEl.hidden = false;
-    apptFeedbackEl.innerHTML = '✅ <strong>¡Solicitud lista!</strong> Se abrió Google Calendar con <code>' + PEDRO_EMAIL + '</code> como invitado y tu motivo cargado. Guardá el evento en Google Calendar para que Pedro reciba la invitación y pueda <strong>Aceptarla o Rechazarla</strong> (o probá la pestaña <em>"Panel de Pedro"</em> arriba).';
+    apptFeedbackEl.innerHTML = '✅ <strong>¡Abriendo tu Google Calendar!</strong> Al guardar el evento en tu calendario, Google le enviará automáticamente la invitación por mail y directo al Google Calendar de <strong>Pedro (' + PEDRO_EMAIL + ')</strong> para que la acepte o rechace desde su propio Calendar.';
 
-    window.open(data.gcalUrl, '_blank', 'noopener');
+    window.open(gcalUrl, '_blank', 'noopener');
   });
 
   document.getElementById('btn-submit-email').addEventListener('click', function() {
@@ -763,21 +581,16 @@
       showToast('Completá tu nombre y el motivo de la reunión primero', 2200);
       return;
     }
-    data.gcalUrl = buildGoogleCalendarUrl(data);
-    saveAppointmentRecord(data, function() {
-      loadAndRenderAppointments();
-    });
-
+    var gcalUrl = buildGoogleCalendarUrl(data);
     var subject = encodeURIComponent('Solicitud de Reunión (Portfolio 3D): ' + data.name);
     var body = encodeURIComponent(
       'Hola Pedro,\n\n' +
-      'Acabo de recorrer tu Portfolio 3D Sendero Cumbre y llegué a la Meta.\n' +
-      'Me gustaría agendar una reunión con vos:\n\n' +
+      'Recorrí tu Portfolio 3D Sendero Cumbre y me gustaría agendar una reunión con vos:\n\n' +
       '• Nombre / Empresa: ' + data.name + '\n' +
       '• Email: ' + (data.email || 'No especificado') + '\n' +
       '• Fecha y Hora propuesta: ' + data.date + ' a las ' + data.time + ' hs (' + data.duration + ' min)\n' +
       '• Motivo de la reunión:\n' + data.reason + '\n\n' +
-      'Link directo para aceptar y agregar a Google Calendar:\n' + data.gcalUrl + '\n\n' +
+      'Link para agendar en tu Google Calendar:\n' + gcalUrl + '\n\n' +
       '¡Saludos!'
     );
     window.location.href = 'mailto:' + PEDRO_EMAIL + '?subject=' + subject + '&body=' + body;
@@ -790,8 +603,7 @@
       addScore(300, '🏁 ¡Meta Alcanzada!');
       if (SE) SE.playFanfare();
     }
-    finishStatsEl.textContent = 'Puntaje: ' + score + ' pts · Estaciones visitadas: ' + visited.size + '/5 · Elegí día, hora y motivo para conectar con mi Google Calendar.';
-    loadAndRenderAppointments();
+    finishStatsEl.textContent = 'Puntaje: ' + score + ' pts · Estaciones visitadas: ' + visited.size + '/5 · Al agendar en tu Google Calendar, a Pedro le llega la invitación por mail y en su Calendar para aceptarla.';
     finishPopupEl.hidden = false;
     requestAnimationFrame(function() { finishPopupEl.classList.add('show'); });
   }
@@ -817,18 +629,29 @@
     var stations = WB.getStations();
     stations.forEach(function(st) {
       var d = Math.hypot(st.pos.x - BC.physics.x, st.pos.z - BC.physics.z);
-      if (d < nearestDist) { nearestDist = d; nearest = st; }
-      if (d > 9) st.dismissed = false;
+      var trigR = st.triggerRadius || 6.5;
+      if (d < trigR && d < nearestDist) {
+        nearestDist = d;
+        nearest = st;
+      }
+      if (d > trigR + 2.8) st.dismissed = false;
       if (st.id !== 0) {
         st.flag.rotation.y += 0.02;
         st.marker.position.y = st.pos.y + Math.sin(performance.now() * 0.002 + st.id) * 0.05;
       }
     });
-    if (!activeStation && finishPopupEl.hidden && nearest && nearestDist < 6.5 && !nearest.dismissed) {
+
+    // No abrir popups mientras el jugador está haciendo el truco Rampa + Grind en el carril central (x cerca de 0)
+    var inGrindCorridor = Math.abs(BC.physics.x) < 7.5 && Math.abs(BC.physics.z) < 15.5;
+    var busyDoingTrick = BC.physics.airborne || BC.physics.grinding || inGrindCorridor;
+
+    if (!activeStation && !busyDoingTrick && finishPopupEl.hidden && nearest && !nearest.dismissed) {
       openStationPopup(nearest);
     } else if (activeStation) {
       var dActive = Math.hypot(activeStation.pos.x - BC.physics.x, activeStation.pos.z - BC.physics.z);
-      if (dActive > 10) closeStationPopup(false);
+      if (dActive > (activeStation.triggerRadius || 6.5) + 3.5 || BC.physics.grinding) {
+        closeStationPopup(false);
+      }
     }
 
     // Comprobar si la moto cruza el Arco de Meta 3D
@@ -846,12 +669,12 @@
     var trickSignPos = WB.getTrickSignPos();
     if (trickSignPos) {
       var dSign = Math.hypot(trickSignPos.x - BC.physics.x, trickSignPos.z - BC.physics.z);
-      if (dSign < 4.5) {
+      if (dSign < 13 && !BC.physics.grinding) {
         if (!trickSignShown) {
           trickSignShown = true;
-          showToast('¡Zona de Trucos! Saltá y encadená trucos', 2600);
+          showToast('⚡ ¡Zona de Trucos Central! Saltá la rampa hacia el riel para hacer GRIND', 3200);
         }
-      } else if (dSign > 8) {
+      } else if (dSign > 18) {
         trickSignShown = false;
       }
     }
@@ -910,8 +733,6 @@
   document.getElementById('help-close').addEventListener('click', closeHelp);
   document.getElementById('help-continue').addEventListener('click', closeHelp);
   document.getElementById('restart-btn').addEventListener('click', restartRun);
-
-  loadAndRenderAppointments();
 
   // Main animation loop
   var clock = new THREE.Clock();

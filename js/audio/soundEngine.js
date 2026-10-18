@@ -267,13 +267,22 @@ window.SoundEngine = (function() {
       turboOscGain.gain.setTargetAtTime(0.0, now, 0.08);
     }
 
-    // Maniobra y derrape de neumáticos
-    var turnIntensity = (!airborne && spd > 4.5 && steer > 0.2)
-      ? Math.min(1, ((steer - 0.2) / 0.8) * (spd / 20))
-      : 0;
-    var tireFreq = 650 + turnIntensity * 520 + Math.sin(performance.now() * 0.03) * 45;
-    tireFilter.frequency.setTargetAtTime(tireFreq, now, 0.04);
-    tireGain.gain.setTargetAtTime(turnIntensity * 0.085, now, 0.05);
+    // Maniobra y derrape de neumáticos o Grind metálico en el riel ("Super Truco")
+    var grinding = !!state.grinding;
+    if (grinding) {
+      var grindFreq = 1480 + Math.sin(performance.now() * 0.08) * 220;
+      tireFilter.frequency.setTargetAtTime(grindFreq, now, 0.02);
+      tireFilter.Q.setTargetAtTime(5.5, now, 0.02);
+      tireGain.gain.setTargetAtTime(0.14, now, 0.03);
+    } else {
+      var turnIntensity = (!airborne && spd > 4.5 && steer > 0.2)
+        ? Math.min(1, ((steer - 0.2) / 0.8) * (spd / 20))
+        : 0;
+      var tireFreq = 650 + turnIntensity * 520 + Math.sin(performance.now() * 0.03) * 45;
+      tireFilter.frequency.setTargetAtTime(tireFreq, now, 0.04);
+      tireFilter.Q.setTargetAtTime(3.2, now, 0.04);
+      tireGain.gain.setTargetAtTime(turnIntensity * 0.085, now, 0.05);
+    }
   }
 
   // Sonido ambiental bajito según el clima ('sun', 'rain', 'snow')
