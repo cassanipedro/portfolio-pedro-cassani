@@ -1,4 +1,4 @@
-// Motorcycle 3D Loader (Studio Ghibli Style + Rider & Animated Scarf), Smooth Driveable Physics & Controlled Jumps
+// Motorcycle 3D Loader (Studio Ghibli Style + Twin Exhaust Turbo Flames + Animated Rider), Suspension & Responsive Mechanics
 window.BikeController = (function() {
   'use strict';
 
@@ -6,21 +6,21 @@ window.BikeController = (function() {
   var PD = window.PortfolioData;
 
   var BIKE = {
-    maxSpeed: 28,
-    accel: 20,
+    maxSpeed: 29,
+    accel: 22,
     jumpPower: 13,
     climb: 2.0,
-    lean: 0.78,
-    turboMult: 1.42,
+    lean: 0.85,
+    turboMult: 1.48,
     baseOffset: 0.06
   };
 
   var GRAVITY = 20;
   var RAMP_BASE_POWER = 10.5;
-  var TRICK_SPIN_RATE = 7.2;
+  var TRICK_SPIN_RATE = 7.4;
   var ROUTE_BOOST = 1.25;
-  var STEER_SMOOTH = 7.5;
-  var TURN_RATE = 2.2;
+  var STEER_SMOOTH = 8.5;
+  var TURN_RATE = 2.3;
   var FRICTION = 6.5;
   var MAX_REV = -9;
   var BIKE_COLLIDE_R = 0.55;
@@ -29,16 +29,29 @@ window.BikeController = (function() {
     x: 0, z: 0, y: 0,
     heading: 0, speed: 0, steer: 0,
     pitch: 0, roll: 0, turbo: 1,
+    turboActive: false, throttle: 0,
     airborne: false, yVel: 0, airTime: 0,
     trickRotation: 0, driftAccum: 0,
     onRoute: false, wheelie: 0, wheelieAccum: 0,
-    climbSlope: 0, jumpCooldown: 0, skidTimer: 0
+    climbSlope: 0, jumpCooldown: 0, skidTimer: 0,
+    suspOffset: 0, suspVel: 0
   };
 
   var SPAWN_X = 0, SPAWN_Z = PD.CIRCUIT_RADIUS, SPAWN_HEADING = Math.PI / 2;
   var bike = null;
+  var riderGroup = null;
+  var riderTorso = null;
+  var riderHead = null;
   var scarfNodes = [];
   var brakeLightMat = null;
+
+  // Sistemas de Llamas de Fuego para el Turbo (3D + Luz + Partículas de Fuego)
+  var exhaustNozzles = [];
+  var turboFlameLight = null;
+  var flameTex = null;
+  var flamePool = [];
+  var flameCursor = 0;
+
   var dustTex = null;
   var dustPool = [];
   var dustCursor = 0;
@@ -67,23 +80,57 @@ window.BikeController = (function() {
     return { pivot: pivot, center: center };
   }
 
-  // Construcción de detalles estilo Studio Ghibli para la moto + piloto con bufanda al viento
+  // Construcción de detalles mecánicos de alta calidad para la moto, escapes dobles con llamas 3D y piloto Ghibli
   function buildGhibliRiderAndDetails(bikeGroup, toonGrad) {
     function gMat(color, extra) {
       return new THREE.MeshToonMaterial(Object.assign({ color: color, gradientMap: toonGrad }, extra || {}));
     }
 
-    // 1. Faro delantero cálido estilo anime + parabrisas translúcido + luz de freno trasera
+    var chromeMat = gMat(0xe2e8f0);
+    var darkMetalMat = gMat(0x282c34);
+    var copperMat = gMat(0xd97742);
+    var goldMat = gMat(0xe9c46a);
+    var redSpringMat = gMat(0xe63946);
+
+    // 1. Faro delantero cálido con aro cromado + visera + velocímetro doble retro + espejos
+    var bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.145, 0.08, 16), chromeMat);
+    bezel.rotation.x = Math.PI / 2;
+    bezel.position.set(0, 0.88, 1.05);
+    bikeGroup.add(bezel);
+
     var headlight = new THREE.Mesh(
       new THREE.SphereGeometry(0.13, 14, 12),
-      new THREE.MeshBasicMaterial({ color: 0xfff3b0 })
+      new THREE.MeshBasicMaterial({ color: 0xfff5b8 })
     );
-    headlight.scale.set(1.1, 0.9, 0.5);
+    headlight.scale.set(1.05, 0.95, 0.5);
     headlight.position.set(0, 0.88, 1.08);
     bikeGroup.add(headlight);
 
+    // Doble reloj velocímetro / tacómetro en el manubrio
+    [-0.075, 0.075].forEach(function(gx) {
+      var gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.05, 12), chromeMat);
+      gauge.rotation.x = -0.6;
+      gauge.position.set(gx, 1.04, 0.72);
+      bikeGroup.add(gauge);
+    });
+
+    // Horquilla telescópica cromada delantera y amortiguadores traseros rojos
+    [-0.11, 0.11].forEach(function(fx) {
+      var fork = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.022, 0.72, 10), chromeMat);
+      fork.rotation.x = 0.36;
+      fork.position.set(fx, 0.62, 0.82);
+      bikeGroup.add(fork);
+
+      // Amortiguador trasero espiralado
+      var shock = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.42, 10), redSpringMat);
+      shock.rotation.x = -0.42;
+      shock.position.set(fx * 1.25, 0.56, -0.58);
+      bikeGroup.add(shock);
+    });
+
+    // Parabrisas translúcido estilo café-racer Ghibli
     var visorMat = new THREE.MeshBasicMaterial({
-      color: 0xa8dadc,
+      color: 0xbae6fd,
       transparent: true,
       opacity: 0.52,
       side: THREE.DoubleSide
@@ -93,91 +140,151 @@ window.BikeController = (function() {
     visor.position.set(0, 1.06, 0.82);
     bikeGroup.add(visor);
 
+    // Luz de freno trasera reactiva
     brakeLightMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
-    var tailLight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.07, 0.06), brakeLightMat);
+    var tailLight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.075, 0.06), brakeLightMat);
     tailLight.position.set(0, 0.88, -1.06);
     bikeGroup.add(tailLight);
 
-    // 2. Piloto estilo Studio Ghibli (chaqueta de aviador, casco clásico con antiparras y bufanda animada al viento)
-    var rider = new THREE.Group();
-    rider.position.set(0, 0.82, -0.08);
+    // 2. ESCAPES DOBLES CROMADOS + LLAMAS 3D DE FUEGO DEL TURBO
+    exhaustNozzles = [];
+    var coreFlameMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.95 });
+    var midFlameMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.88 });
+    var outerFlameMat = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 0.78 });
+
+    [-0.175, 0.175].forEach(function(ex) {
+      // Colector de bronce desde el motor
+      var headerPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.65, 10), copperMat);
+      headerPipe.rotation.x = Math.PI / 2 + 0.12;
+      headerPipe.position.set(ex * 0.88, 0.38, -0.25);
+      bikeGroup.add(headerPipe);
+
+      // Silenciador trasero cromado inclinado hacia arriba
+      var mufflerGroup = new THREE.Group();
+      mufflerGroup.position.set(ex, 0.52, -0.82);
+      mufflerGroup.rotation.x = 0.16;
+
+      var mufflerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.044, 0.58, 14), chromeMat);
+      mufflerBody.rotation.x = Math.PI / 2;
+      mufflerGroup.add(mufflerBody);
+
+      var mufflerTip = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 0.1, 14), darkMetalMat);
+      mufflerTip.rotation.x = Math.PI / 2;
+      mufflerTip.position.z = -0.31;
+      mufflerGroup.add(mufflerTip);
+
+      // Conos de fuego 3D multicapa que salen de cada escape al activar el Turbo
+      var flamePivot = new THREE.Group();
+      flamePivot.position.set(0, 0, -0.35);
+      flamePivot.visible = false;
+
+      var coreCone = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.45, 12), coreFlameMat);
+      coreCone.rotation.x = -Math.PI / 2;
+      coreCone.position.z = -0.22;
+      flamePivot.add(coreCone);
+
+      var midCone = new THREE.Mesh(new THREE.ConeGeometry(0.068, 0.78, 12), midFlameMat);
+      midCone.rotation.x = -Math.PI / 2;
+      midCone.position.z = -0.36;
+      flamePivot.add(midCone);
+
+      var outerCone = new THREE.Mesh(new THREE.ConeGeometry(0.095, 1.15, 12), outerFlameMat);
+      outerCone.rotation.x = -Math.PI / 2;
+      outerCone.position.z = -0.52;
+      flamePivot.add(outerCone);
+
+      mufflerGroup.add(flamePivot);
+      bikeGroup.add(mufflerGroup);
+
+      exhaustNozzles.push({
+        group: mufflerGroup,
+        flamePivot: flamePivot,
+        coreCone: coreCone,
+        midCone: midCone,
+        outerCone: outerCone,
+        localTip: new THREE.Vector3(ex, 0.56, -1.16)
+      });
+    });
+
+    // Luz dinámica naranja de fuego que ilumina el asfalto cuando salen llamas del turbo
+    turboFlameLight = new THREE.PointLight(0xff5e00, 0, 6.0, 1.8);
+    turboFlameLight.position.set(0, 0.62, -1.45);
+    bikeGroup.add(turboFlameLight);
+
+    // 3. Piloto estilo Studio Ghibli articulado (se inclina en las curvas y se agacha con el turbo)
+    riderGroup = new THREE.Group();
+    riderGroup.position.set(0, 0.82, -0.08);
 
     var jacketMat = gMat(0x2b5876);
     var pantsMat = gMat(0x3d405b);
     var helmetMat = gMat(0xfdf8ee);
     var leatherMat = gMat(0x6f4518);
-    var goldMat = gMat(0xe9c46a);
     var scarfMat = gMat(0xe63946, { side: THREE.DoubleSide });
 
-    // Torso inclinado hacia el manubrio
-    var torso = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.14, 0.52, 12), jacketMat);
-    torso.position.set(0, 0.32, 0.08);
-    torso.rotation.x = 0.52;
-    torso.castShadow = true;
-    rider.add(torso);
+    riderTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.14, 0.52, 12), jacketMat);
+    riderTorso.position.set(0, 0.32, 0.08);
+    riderTorso.rotation.x = 0.52;
+    riderTorso.castShadow = true;
+    riderGroup.add(riderTorso);
 
-    // Hombros redondeados
     var shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), jacketMat);
     shoulders.scale.set(1.25, 0.7, 0.9);
     shoulders.position.set(0, 0.50, 0.19);
-    rider.add(shoulders);
+    riderGroup.add(shoulders);
 
-    // Brazos hacia el manubrio
     [-0.19, 0.19].forEach(function(sx) {
       var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.048, 0.46, 10), jacketMat);
       arm.position.set(sx * 0.88, 0.40, 0.38);
       arm.rotation.x = 1.18;
       arm.rotation.z = sx * -0.22;
       arm.castShadow = true;
-      rider.add(arm);
+      riderGroup.add(arm);
 
       var glove = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), leatherMat);
       glove.position.set(sx * 0.75, 0.29, 0.58);
-      rider.add(glove);
+      riderGroup.add(glove);
 
-      // Piernas flexionadas
       var thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.062, 0.38, 10), pantsMat);
       thigh.position.set(sx * 0.82, 0.05, 0.06);
       thigh.rotation.x = -0.85;
-      rider.add(thigh);
+      riderGroup.add(thigh);
 
       var boot = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.24, 0.12), leatherMat);
       boot.position.set(sx * 0.84, -0.14, 0.02);
       boot.rotation.x = 0.35;
-      rider.add(boot);
+      riderGroup.add(boot);
     });
 
-    // Casco clásico redondeado + antiparras de aviador estilo Porco Rosso / Ghibli
-    var headGroup = new THREE.Group();
-    headGroup.position.set(0, 0.66, 0.24);
+    riderHead = new THREE.Group();
+    riderHead.position.set(0, 0.66, 0.24);
     var helmet = new THREE.Mesh(new THREE.SphereGeometry(0.175, 16, 14), helmetMat);
     helmet.castShadow = true;
-    headGroup.add(helmet);
+    riderHead.add(helmet);
 
     var stripe = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.36), gMat(0xe63946));
-    headGroup.add(stripe);
+    riderHead.add(stripe);
 
     var goggleStrap = new THREE.Mesh(new THREE.CylinderGeometry(0.178, 0.178, 0.045, 16), leatherMat);
     goggleStrap.rotation.x = -0.15;
     goggleStrap.position.y = 0.02;
-    headGroup.add(goggleStrap);
+    riderHead.add(goggleStrap);
 
     [-0.065, 0.065].forEach(function(gx) {
       var rim = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.04, 12), goldMat);
       rim.rotation.x = Math.PI / 2;
       rim.position.set(gx, 0.03, 0.16);
-      headGroup.add(rim);
+      riderHead.add(rim);
       var lens = new THREE.Mesh(new THREE.CircleGeometry(0.04, 12), new THREE.MeshBasicMaterial({ color: 0x7dd3fc }));
       lens.position.set(gx, 0.03, 0.182);
-      headGroup.add(lens);
+      riderHead.add(lens);
     });
-    rider.add(headGroup);
+    riderGroup.add(riderHead);
 
     // Bufanda roja animada al viento (5 segmentos articulados)
     scarfNodes = [];
     var scarfRoot = new THREE.Group();
     scarfRoot.position.set(0, 0.54, 0.14);
-    rider.add(scarfRoot);
+    riderGroup.add(scarfRoot);
 
     var parentNode = scarfRoot;
     for (var si = 0; si < 5; si++) {
@@ -195,7 +302,7 @@ window.BikeController = (function() {
       parentNode = segPivot;
     }
 
-    bikeGroup.add(rider);
+    bikeGroup.add(riderGroup);
   }
 
   function initBike(scene, toonGrad) {
@@ -229,7 +336,6 @@ window.BikeController = (function() {
       var frontInfo = frontWheelNode ? makeWheelPivot(model, frontWheelNode) : null;
       var rearInfo = rearWheelNode ? makeWheelPivot(model, rearWheelNode) : null;
 
-      // Colores estilo Studio Ghibli: Rojo carmesí vibrante + detalles crema marfil y cromo cálido
       var ghibliRed = new THREE.Color(0xd63426);
       var ghibliCream = new THREE.Color(0xfdf8ee);
       var ghibliChrome = new THREE.Color(0xd8e2ec);
@@ -255,15 +361,24 @@ window.BikeController = (function() {
         }
       });
 
-      // Llantas de aleación doradas en el centro de ambas ruedas para que se vea el giro con claridad
+      // Llantas doradas con rayos y discos de freno ventilados
+      var rimMat = new THREE.MeshToonMaterial({ color: 0xe9c46a, gradientMap: toonGrad });
+      var discMat = new THREE.MeshToonMaterial({ color: 0xcbd5e1, gradientMap: toonGrad });
       [frontInfo, rearInfo].forEach(function(wInfo) {
         if (!wInfo) return;
-        var rim = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.72, 0.72, 0.42, 16),
-          new THREE.MeshToonMaterial({ color: 0xe9c46a, gradientMap: toonGrad })
-        );
+        var rim = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.42, 16), rimMat);
         rim.rotation.z = Math.PI / 2;
         wInfo.pivot.add(rim);
+
+        var brakeDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.46, 14), discMat);
+        brakeDisc.rotation.z = Math.PI / 2;
+        wInfo.pivot.add(brakeDisc);
+
+        for (var sp = 0; sp < 4; sp++) {
+          var spoke = new THREE.Mesh(new THREE.BoxGeometry(0.46, 1.38, 0.08), rimMat);
+          spoke.rotation.x = (sp / 4) * Math.PI;
+          wInfo.pivot.add(spoke);
+        }
       });
 
       var wrapper = new THREE.Group();
@@ -330,6 +445,40 @@ window.BikeController = (function() {
       dustPool.push(dspr);
     }
     scene.add(dustGroup);
+
+    // Textura radial de fuego brillante para las partículas del Turbo
+    var fCnv = document.createElement('canvas');
+    fCnv.width = fCnv.height = 64;
+    var fCtx = fCnv.getContext('2d');
+    var fGrad = fCtx.createRadialGradient(32, 32, 2, 32, 32, 32);
+    fGrad.addColorStop(0, 'rgba(255, 255, 220, 1)');
+    fGrad.addColorStop(0.32, 'rgba(255, 195, 30, 0.95)');
+    fGrad.addColorStop(0.68, 'rgba(255, 69, 0, 0.65)');
+    fGrad.addColorStop(1, 'rgba(220, 20, 0, 0)');
+    fCtx.fillStyle = fGrad;
+    fCtx.fillRect(0, 0, 64, 64);
+    flameTex = new THREE.CanvasTexture(fCnv);
+
+    var flameGroup = new THREE.Group();
+    for (var fi = 0; fi < 40; fi++) {
+      var fmat = new THREE.SpriteMaterial({
+        map: flameTex,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+      var fspr = new THREE.Sprite(fmat);
+      fspr.scale.set(0.1, 0.1, 1);
+      fspr.userData.life = 0;
+      fspr.userData.maxLife = 0.25;
+      fspr.userData.vx = 0;
+      fspr.userData.vy = 0;
+      fspr.userData.vz = 0;
+      flameGroup.add(fspr);
+      flamePool.push(fspr);
+    }
+    scene.add(flameGroup);
 
     var skC = document.createElement('canvas');
     skC.width = 16; skC.height = 16;
@@ -413,6 +562,27 @@ window.BikeController = (function() {
     spr.material.opacity = 0.55 * strength;
   }
 
+  function spawnTurboFlameParticle(worldPos, heading) {
+    if (!flamePool.length) return;
+    var spr = flamePool[flameCursor];
+    flameCursor = (flameCursor + 1) % flamePool.length;
+    var backX = -Math.sin(heading);
+    var backZ = -Math.cos(heading);
+    spr.position.copy(worldPos).add(new THREE.Vector3(
+      (Math.random() - 0.5) * 0.08,
+      (Math.random() - 0.5) * 0.08,
+      (Math.random() - 0.5) * 0.08
+    ));
+    var jetSpeed = 6.5 + Math.random() * 5.5;
+    spr.userData.vx = backX * jetSpeed + (Math.random() - 0.5) * 1.4;
+    spr.userData.vy = 0.4 + Math.random() * 1.2;
+    spr.userData.vz = backZ * jetSpeed + (Math.random() - 0.5) * 1.4;
+    spr.userData.maxLife = 0.18 + Math.random() * 0.12;
+    spr.userData.life = spr.userData.maxLife;
+    spr.scale.set(0.28, 0.28, 1);
+    spr.material.opacity = 0.95;
+  }
+
   function spawnSkidSegment(pos, heading) {
     if (!skidPool.length) return;
     var it = skidPool[skidCursor];
@@ -439,6 +609,7 @@ window.BikeController = (function() {
           physics.trickRotation = 0;
           physics.climbSlope = 0;
           spawnDust(bike.position, 1);
+          if (window.SoundEngine) window.SoundEngine.playJump();
           return;
         }
       }
@@ -469,7 +640,6 @@ window.BikeController = (function() {
       physics.climbSlope *= Math.max(0, 1 - 3.0 * dt);
     }
 
-    // Solo despega en las 2 lomitas cuando vas con buena velocidad, dando un salto corto y muy controlable
     if (spd > 11.0 && physics.climbSlope > 0.18 && slopeAhead < 0.08 && (physics.climbSlope - slopeFar) > 0.22) {
       physics.airborne = true;
       physics.yVel = THREE.MathUtils.clamp(spd * 0.26 + 3.2, 6.2, 9.4);
@@ -478,6 +648,7 @@ window.BikeController = (function() {
       physics.climbSlope = 0;
       physics.jumpCooldown = 1.2;
       spawnDust(bike.position, 0.85);
+      if (window.SoundEngine) window.SoundEngine.playJump();
     }
   }
 
@@ -488,9 +659,12 @@ window.BikeController = (function() {
     } else if (physics.airTime > 0.28) {
       onScoreCallback(Math.round(physics.airTime * 80), '¡Salto!');
     }
+    // Compresión realista de suspensión al aterrizar
+    physics.suspVel = -2.4;
     physics.trickRotation = 0;
     physics.airTime = 0;
     spawnDust(bike.position, 0.85);
+    if (window.SoundEngine) window.SoundEngine.playLand();
   }
 
   function resolveCollisions() {
@@ -518,14 +692,25 @@ window.BikeController = (function() {
     physics.steer += (steerTarget - physics.steer) * Math.min(1, STEER_SMOOTH * dt);
 
     var wheelieInput = (input.forward && input.back) || input.trick;
+    var throttle = (input.forward && input.back) ? 1 : (input.forward ? 1 : (input.back ? -1 : 0));
+    physics.throttle = throttle;
 
     if (brakeLightMat) {
-      brakeLightMat.color.setHex(input.back && !input.forward ? 0xffaa00 : 0xff3b30);
+      brakeLightMat.color.setHex(input.back && !input.forward ? 0xffbe0b : 0xff3b30);
     }
+
+    // Turbo activo también en el aire si se mantiene apretado
+    var turboActive = false;
+    if (input.turbo && physics.turbo > 0.04 && (throttle > 0 || physics.airborne)) {
+      turboActive = true;
+      physics.turbo = Math.max(0, physics.turbo - 0.52 * dt);
+    } else {
+      physics.turbo = Math.min(1, physics.turbo + 0.30 * dt);
+    }
+    physics.turboActive = turboActive;
 
     if (physics.airborne) {
       if (wheelieInput) physics.trickRotation += TRICK_SPIN_RATE * dt;
-      // Permite doblar suavemente en el aire para seguir la curva del circuito con total control
       var airSpeedRatio = THREE.MathUtils.clamp(Math.abs(physics.speed) / 8, 0, 1);
       physics.heading += physics.steer * TURN_RATE * 0.65 * airSpeedRatio * dt * (physics.speed < 0 ? -1 : 1);
       physics.x += Math.sin(physics.heading) * physics.speed * dt;
@@ -540,17 +725,9 @@ window.BikeController = (function() {
       return;
     }
 
-    var throttle = (input.forward && input.back) ? 1 : (input.forward ? 1 : (input.back ? -1 : 0));
     var onRoute = WB.isOnRoute(physics.x, physics.z);
     physics.onRoute = onRoute;
 
-    var turboActive = false;
-    if (input.turbo && physics.turbo > 0.05 && throttle > 0) {
-      turboActive = true;
-      physics.turbo = Math.max(0, physics.turbo - 0.55 * dt);
-    } else {
-      physics.turbo = Math.min(1, physics.turbo + 0.28 * dt);
-    }
     var maxSpeed = B.maxSpeed * (turboActive ? B.turboMult : 1) * (onRoute ? ROUTE_BOOST : 1);
 
     var s = WB.slopeAt(physics.x, physics.z);
@@ -559,9 +736,9 @@ window.BikeController = (function() {
     var slopeFactor = THREE.MathUtils.clamp(1 - (slopeAlong * 0.22) / B.climb, 0.8, 1.35);
 
     if (throttle > 0) {
-      physics.speed += B.accel * slopeFactor * (turboActive ? 1.35 : 1) * (onRoute ? 1.2 : 1) * dt;
+      physics.speed += B.accel * slopeFactor * (turboActive ? 1.48 : 1) * (onRoute ? 1.2 : 1) * dt;
     } else if (throttle < 0) {
-      if (physics.speed > 0.3) physics.speed -= 32 * dt;
+      if (physics.speed > 0.3) physics.speed -= 34 * dt;
       else physics.speed -= B.accel * 0.6 * dt;
     } else {
       var fr = FRICTION * (1 + Math.max(0, -slopeAlong) * 0.4);
@@ -571,8 +748,10 @@ window.BikeController = (function() {
     physics.speed += -slopeAlong * (throttle > 0 ? 1.0 : 3.5) * dt;
     physics.speed = THREE.MathUtils.clamp(physics.speed, MAX_REV, maxSpeed);
 
-    var speedRatio = THREE.MathUtils.clamp(Math.abs(physics.speed) / 8, 0, 1);
-    physics.heading += physics.steer * TURN_RATE * speedRatio * dt * (physics.speed < 0 ? -1 : 1);
+    var speedRatio = THREE.MathUtils.clamp(Math.abs(physics.speed) / 7.5, 0, 1);
+    // Agarre progresivo para doblar con precisión tanto a baja como a alta velocidad
+    var highSpeedGrip = 1.0 - THREE.MathUtils.clamp((Math.abs(physics.speed) - 24) / 45, 0, 0.22);
+    physics.heading += physics.steer * TURN_RATE * speedRatio * highSpeedGrip * dt * (physics.speed < 0 ? -1 : 1);
 
     physics.x += Math.sin(physics.heading) * physics.speed * dt;
     physics.z += Math.cos(physics.heading) * physics.speed * dt;
@@ -624,6 +803,10 @@ window.BikeController = (function() {
 
   function updateBikeMesh(dt) {
     var B = BIKE;
+    // Dinámica de suspensión (resorte + amortiguador)
+    physics.suspVel += (-physics.suspOffset * 48 - physics.suspVel * 10) * dt;
+    physics.suspOffset = THREE.MathUtils.clamp(physics.suspOffset + physics.suspVel * dt, -0.18, 0.14);
+
     if (physics.airborne) {
       physics.yVel -= GRAVITY * dt;
       physics.y += physics.yVel * dt;
@@ -641,9 +824,10 @@ window.BikeController = (function() {
       var fS = WB.slopeAt(physics.x + Math.sin(physics.heading) * 0.95, physics.z + Math.cos(physics.heading) * 0.95);
       var rS = WB.slopeAt(physics.x - Math.sin(physics.heading) * 0.75, physics.z - Math.cos(physics.heading) * 0.75);
       var groundH = groundSurfaceHeight(physics.x, physics.z);
-      var targetY = groundH + B.baseOffset;
+      var targetY = groundH + B.baseOffset + physics.suspOffset;
       physics.y += (targetY - physics.y) * Math.min(1, 22 * dt);
-      var targetPitch = THREE.MathUtils.clamp(Math.atan2(rS.h - fS.h, 1.7), -0.45, 0.45) - physics.wheelie * 0.48;
+      var turboPitch = physics.turboActive ? -0.05 : 0;
+      var targetPitch = THREE.MathUtils.clamp(Math.atan2(rS.h - fS.h, 1.7), -0.45, 0.45) - physics.wheelie * 0.48 + turboPitch;
       physics.pitch += (targetPitch - physics.pitch) * Math.min(1, 12 * dt);
     }
 
@@ -651,8 +835,8 @@ window.BikeController = (function() {
 
     var targetRoll = physics.airborne
       ? physics.roll * 0.9
-      : (-physics.steer * 0.4 * B.lean * THREE.MathUtils.clamp(Math.abs(physics.speed) / 14, 0, 1));
-    physics.roll += (targetRoll - physics.roll) * Math.min(1, 6 * dt);
+      : (-physics.steer * 0.42 * B.lean * THREE.MathUtils.clamp(Math.abs(physics.speed) / 13, 0, 1));
+    physics.roll += (targetRoll - physics.roll) * Math.min(1, 7.5 * dt);
 
     var visualPitch = physics.airborne ? (physics.pitch + physics.trickRotation) : physics.pitch;
     bike.rotation.order = 'YXZ';
@@ -662,13 +846,53 @@ window.BikeController = (function() {
     bike.userData.frontWheel.rotation.x -= wheelSpin;
     bike.userData.rearWheel.rotation.x -= wheelSpin;
 
-    // Animar la bufanda del piloto con el viento y la velocidad
+    // Animar postura del piloto (inclinación en curvas + agachado aerodinámico con el Turbo)
+    if (riderGroup) {
+      var leanIn = -physics.steer * 0.22 * THREE.MathUtils.clamp(Math.abs(physics.speed) / 10, 0, 1);
+      riderGroup.rotation.z += (leanIn - riderGroup.rotation.z) * Math.min(1, 10 * dt);
+      riderGroup.position.x += (-leanIn * 0.25 - riderGroup.position.x) * Math.min(1, 10 * dt);
+      if (riderTorso && riderHead) {
+        var tuck = physics.turboActive ? 0.76 : (0.52 - physics.wheelie * 0.18);
+        riderTorso.rotation.x += (tuck - riderTorso.rotation.x) * Math.min(1, 9 * dt);
+        riderHead.position.z += ((physics.turboActive ? 0.32 : 0.24) - riderHead.position.z) * Math.min(1, 9 * dt);
+      }
+    }
+
+    // Animar la bufanda del piloto con el viento y el turbo
     var now = performance.now() * 0.008;
-    var windFactor = 0.25 + THREE.MathUtils.clamp(Math.abs(physics.speed) / 22, 0, 1) * 0.85;
+    var windFactor = 0.25 + THREE.MathUtils.clamp(Math.abs(physics.speed) / 22, 0, 1.2) * (physics.turboActive ? 1.35 : 0.85);
     for (var si = 0; si < scarfNodes.length; si++) {
       var sn = scarfNodes[si];
-      sn.rotation.x = 0.18 * windFactor + Math.sin(now * 2.2 - si * 0.9) * 0.14 * windFactor;
-      sn.rotation.y = -physics.steer * 0.18 + Math.cos(now * 1.7 - si * 0.8) * 0.12 * windFactor;
+      sn.rotation.x = 0.18 * windFactor + Math.sin(now * 2.5 - si * 0.9) * 0.15 * windFactor;
+      sn.rotation.y = -physics.steer * 0.18 + Math.cos(now * 1.9 - si * 0.8) * 0.13 * windFactor;
+    }
+
+    // Animar LLAMAS DE FUEGO 3D y chispas en ambos escapes cuando el Turbo está activo
+    if (physics.turboActive) {
+      bike.updateMatrixWorld();
+      var pulse = 0.82 + Math.random() * 0.45;
+      for (var ei = 0; ei < exhaustNozzles.length; ei++) {
+        var noz = exhaustNozzles[ei];
+        noz.flamePivot.visible = true;
+        var fScaleZ = 0.85 + Math.random() * 0.65;
+        var fScaleXY = 0.88 + Math.random() * 0.32;
+        noz.flamePivot.scale.set(fScaleXY, fScaleXY, fScaleZ);
+        noz.coreCone.rotation.z = Math.random() * Math.PI;
+        noz.outerCone.rotation.z = -Math.random() * Math.PI;
+
+        var tipWorld = noz.localTip.clone().applyMatrix4(bike.matrixWorld);
+        spawnTurboFlameParticle(tipWorld, physics.heading);
+      }
+      if (turboFlameLight) {
+        turboFlameLight.intensity = 2.4 * pulse;
+      }
+    } else {
+      for (var ei2 = 0; ei2 < exhaustNozzles.length; ei2++) {
+        exhaustNozzles[ei2].flamePivot.visible = false;
+      }
+      if (turboFlameLight) {
+        turboFlameLight.intensity = 0;
+      }
     }
 
     if (!physics.airborne && Math.abs(physics.speed) > 3 && Math.random() < 0.6) {
@@ -687,6 +911,23 @@ window.BikeController = (function() {
         var sc = 0.15 + t * 0.9;
         spr.scale.set(sc, sc, 1);
         spr.material.opacity = Math.max(0, 0.5 * (1 - t));
+      }
+    }
+
+    // Actualizar estela de fuego del Turbo
+    for (var fi = 0; fi < flamePool.length; fi++) {
+      var fspr = flamePool[fi];
+      if (fspr.userData.life > 0) {
+        fspr.userData.life -= dt;
+        var ft = 1 - fspr.userData.life / fspr.userData.maxLife;
+        fspr.position.x += fspr.userData.vx * dt;
+        fspr.position.y += fspr.userData.vy * dt;
+        fspr.position.z += fspr.userData.vz * dt;
+        var fsc = 0.24 + ft * 0.52;
+        fspr.scale.set(fsc, fsc, 1);
+        fspr.material.opacity = Math.max(0, (1 - ft) * 0.92);
+      } else {
+        fspr.material.opacity = 0;
       }
     }
 
@@ -758,9 +999,11 @@ window.BikeController = (function() {
 
   function resetPhysics() {
     physics.speed = 0; physics.steer = 0; physics.pitch = 0; physics.roll = 0; physics.turbo = 1;
+    physics.turboActive = false; physics.throttle = 0;
     physics.airborne = false; physics.yVel = 0; physics.airTime = 0; physics.trickRotation = 0;
     physics.driftAccum = 0; physics.wheelie = 0; physics.wheelieAccum = 0;
     physics.climbSlope = 0; physics.jumpCooldown = 0;
+    physics.suspOffset = 0; physics.suspVel = 0;
     placeInitial();
   }
 

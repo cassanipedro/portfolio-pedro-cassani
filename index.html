@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Portfolio Pedro Cassani · Sendero Cumbre</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="css/styles.css?v=5">
+  <link rel="stylesheet" href="css/styles.css?v=6">
 </head>
 <body>
   <div id="app">
@@ -16,24 +16,26 @@
         <div class="speedo">
           <span class="speedo-value" id="speedo-value">0</span>
           <span class="speedo-unit">km/h</span>
-          <div class="turbo-label">Turbo</div>
+          <div class="turbo-label">Turbo 🔥</div>
           <div class="turbo-track"><div class="turbo-fill" id="turbo-fill"></div></div>
           <div class="turbo-label">Puntos</div>
           <div class="score-value" id="score-value">0</div>
         </div>
         <div class="route-pill" id="route-pill" hidden>¡Ruta rápida!</div>
+        <button type="button" class="finish-pill" id="finish-open-btn">🏁 Meta · Agendar Reunión</button>
         <a class="contact-pill" id="contact-pill" href="mailto:cassanipedro01@gmail.com">✉ cassanipedro01@gmail.com</a>
       </div>
       <div class="hud-topright">
         <div class="corner-row">
-          <div class="weather-pill" id="weather-pill">☀</div>
+          <button class="weather-pill" id="weather-pill" type="button" title="Cambiar clima (Sol / Lluvia / Nieve)">☀</button>
+          <button id="sound-btn" type="button" aria-label="Sonido" title="Activar/Silenciar sonido">🔊</button>
           <button id="help-btn" type="button" aria-label="Ayuda">?</button>
           <button id="restart-btn" type="button" aria-label="Reiniciar">⟲</button>
         </div>
       </div>
     </div>
 
-    <div id="hint">WASD moverte · MAYÚS turbo · ESPACIO o W+S = willy / salto suave en las 2 lomitas</div>
+    <div id="hint">WASD moverte · MAYÚS turbo con llamas 🔥 · Cruzá el arco de META 🏁 para agendar reunión</div>
 
     <!-- Controles Mobile Ergonómicos (ubicados más arriba para manejo cómodo con ambos pulgares) -->
     <div id="touch-controls" hidden>
@@ -59,7 +61,7 @@
             <span class="tc-sub">Truco</span>
           </button>
           <button class="tc-btn tc-turbo" data-key="turbo" type="button" aria-label="Turbo">
-            ⚡
+            🔥
             <span class="tc-sub">Turbo</span>
           </button>
         </div>
@@ -78,6 +80,7 @@
 
     <div id="toast"></div>
 
+    <!-- Popup de Estaciones del Portfolio -->
     <div id="station-popup" hidden>
       <div class="popup-card" id="popup-card">
         <button id="popup-close" type="button" aria-label="Cerrar">×</button>
@@ -86,7 +89,91 @@
         <h2 id="popup-title"></h2>
         <p id="popup-desc"></p>
         <a id="popup-link" href="#" target="_blank" rel="noopener" hidden>Ver más</a>
-        <button id="popup-continue" type="button">Continuar</button>
+        <button id="popup-continue" type="button">Continuar recorrido</button>
+      </div>
+    </div>
+
+    <!-- Popup de META: Agendar Reunión en Google Calendar + Panel de Aprobación de Pedro -->
+    <div id="finish-popup" hidden>
+      <div class="popup-card finish-card">
+        <button id="finish-close" type="button" aria-label="Cerrar">×</button>
+        <div class="finish-badge">🏁 ¡LLEGASTE A LA META!</div>
+        <h2>Agendá una Reunión con Pedro Cassani</h2>
+        <p class="finish-sub" id="finish-stats">Completaste el circuito · Conectate directo con mi Google Calendar indicando el motivo de la reunión para que pueda aceptarla o rechazarla.</p>
+
+        <div class="appt-tabs">
+          <button type="button" class="appt-tab active" data-tab="request">📅 Solicitar Reunión</button>
+          <button type="button" class="appt-tab" data-tab="pedro">✅ Panel de Pedro (<span id="pending-count">0</span>)</button>
+        </div>
+
+        <!-- Vista 1: Formulario para solicitar reunión y enviar invitación a Google Calendar -->
+        <form id="appt-form" class="appt-pane">
+          <div class="appt-row">
+            <div class="appt-field">
+              <label for="appt-name">Tu Nombre y Empresa / Rol *</label>
+              <input id="appt-name" type="text" required placeholder="Ej: Martín Gómez · Tech Lead en Acme">
+            </div>
+            <div class="appt-field">
+              <label for="appt-email">Tu Email de contacto *</label>
+              <input id="appt-email" type="email" required placeholder="tu@empresa.com">
+            </div>
+          </div>
+
+          <div class="appt-row">
+            <div class="appt-field">
+              <label for="appt-date">Fecha propuesta *</label>
+              <input id="appt-date" type="date" required>
+            </div>
+            <div class="appt-field">
+              <label for="appt-time">Hora (ARG / GMT-3) *</label>
+              <input id="appt-time" type="time" required value="11:00">
+            </div>
+            <div class="appt-field appt-field-sm">
+              <label for="appt-duration">Duración</label>
+              <select id="appt-duration">
+                <option value="30" selected>30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="appt-field">
+            <label>Motivo rápido (opcional)</label>
+            <div class="motive-chips">
+              <button type="button" class="motive-chip" data-motive="Propuesta de proyecto / desarrollo a medida">🚀 Proyecto a medida</button>
+              <button type="button" class="motive-chip" data-motive="Modernización de sistema legacy o gestión documental">🛠 Sistema Legacy</button>
+              <button type="button" class="motive-chip" data-motive="Consultoría en Oracle SQL, WMS Infor o Integraciones API">🗄 SQL / WMS / APIs</button>
+              <button type="button" class="motive-chip" data-motive="Propuesta laboral / Incorporación a equipo">💼 Oportunidad Laboral</button>
+            </div>
+          </div>
+
+          <div class="appt-field">
+            <label for="appt-reason">Aclarar el motivo por el cual querés reunirte con Pedro *</label>
+            <textarea id="appt-reason" rows="3" required placeholder="Contame brevemente sobre tu proyecto, desafío técnico o propuesta para que Pedro evalúe y acepte la invitación en su Google Calendar..."></textarea>
+          </div>
+
+          <div id="appt-feedback" class="appt-feedback" hidden></div>
+
+          <div class="appt-actions">
+            <button type="submit" class="btn-gcal" id="btn-submit-gcal">
+              📅 Agendar en Google Calendar (Enviar a Pedro)
+            </button>
+            <button type="button" class="btn-secondary" id="btn-submit-email">
+              ✉️ Enviar solicitud por Email
+            </button>
+          </div>
+        </form>
+
+        <!-- Vista 2: Bandeja de Pedro Cassani para Aceptar o Rechazar las solicitudes -->
+        <div id="pedro-pane" class="appt-pane" hidden>
+          <p class="pedro-intro">
+            Vista de <strong>Pedro Cassani</strong> (<code>cassanipedro01@gmail.com</code>). Revisá el motivo de cada solicitud y elegí <strong>Aceptar</strong> (confirma en Google Calendar) o <strong>Rechazar</strong>:
+          </p>
+          <div id="appt-list" class="appt-list"></div>
+        </div>
+
+        <button id="finish-continue" type="button" class="btn-link-close">Seguir manejando por el circuito</button>
       </div>
     </div>
 
@@ -94,7 +181,7 @@
       <div class="start-panel">
         <h1>Sendero Cumbre</h1>
         <p class="start-welcome">Bienvenido al portfolio de <strong>Pedro Cassani</strong>, un desarrollador de sistemas muy ágil que se adapta a todo tipo de desafíos. Especializado en mejorar sistemas legacy y generar soluciones creativas que agreguen valor al alcance de tus objetivos. Reconocido en la industria por ser un desarrollador rápido y ágil.</p>
-        <p class="start-sub">Arrastrá para ver la moto · Recorré el valle y sus 5 estaciones</p>
+        <p class="start-sub">Arrastrá para ver la moto · Usá el Turbo con llamas 🔥 y llegá a la Meta 🏁 para agendar una reunión</p>
         <button id="start-btn" type="button">Arrancar moto</button>
       </div>
     </div>
@@ -107,11 +194,11 @@
           <span><span class="key">W</span>acelerar</span>
           <span><span class="key">S</span>frenar/reversa</span>
           <span><span class="key">A</span><span class="key">D</span>girar</span>
-          <span><span class="key">⇧</span>turbo</span>
+          <span><span class="key">⇧</span>turbo 🔥</span>
           <span><span class="key">ESPACIO</span> o <span class="key">W</span>+<span class="key">S</span>willy / truco</span>
         </div>
-        <p class="drag-hint">Recorré la ruta fluida con 2 lomitas suaves para dar pequeños saltos controlados y visitá las 5 estaciones con mis proyectos.</p>
-        <p class="drag-hint" style="opacity:.6;font-size:.62rem;">Moto: Paul Spooner (poly.pizza, CC-BY) · Estética Studio Ghibli</p>
+        <p class="drag-hint">Recorré las 5 estaciones, activá el turbo con llamas de fuego y cruzá el <strong>Arco de Meta 🏁</strong> para agendar una reunión en el Google Calendar de Pedro.</p>
+        <p class="drag-hint" style="opacity:.6;font-size:.62rem;">Tocá ☀/🌧/❄ arriba a la derecha para probar el sonido bajito de lluvia o nieve.</p>
         <button id="help-continue" type="button">Entendido</button>
       </div>
     </div>
@@ -122,10 +209,11 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <!-- Arquitectura modular del proyecto -->
-  <script src="js/data/bikeModel.js?v=5"></script>
-  <script src="js/data/portfolioData.js?v=5"></script>
-  <script src="js/world/terrainAndRoutes.js?v=5"></script>
-  <script src="js/physics/bikeController.js?v=5"></script>
-  <script src="js/ui/PortfolioHUD.js?v=5"></script>
+  <script src="js/data/bikeModel.js?v=6"></script>
+  <script src="js/data/portfolioData.js?v=6"></script>
+  <script src="js/audio/soundEngine.js?v=6"></script>
+  <script src="js/world/terrainAndRoutes.js?v=6"></script>
+  <script src="js/physics/bikeController.js?v=6"></script>
+  <script src="js/ui/PortfolioHUD.js?v=6"></script>
 </body>
 </html>

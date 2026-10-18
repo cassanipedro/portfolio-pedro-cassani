@@ -532,6 +532,182 @@ window.WorldBuilder = (function() {
         scene.add(pGroup);
       }
     });
+
+    buildFinishLineArch(scene, toonMat);
+  }
+
+  var FINISH_LINE = null;
+
+  function makeFinishBannerTexture() {
+    var w = 512, h = 128;
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+
+    ctx.fillStyle = '#1b2620';
+    ctx.fillRect(0, 0, w, h);
+
+    // Franja superior e inferior a cuadros blanco/dorado estilo Meta
+    var sq = 16;
+    for (var x = 0; x < w; x += sq) {
+      var isEven = ((x / sq) % 2) === 0;
+      ctx.fillStyle = isEven ? '#fdf8ee' : '#f59e0b';
+      ctx.fillRect(x, 0, sq, 16);
+      ctx.fillStyle = isEven ? '#f59e0b' : '#fdf8ee';
+      ctx.fillRect(x, h - 16, sq, 16);
+    }
+
+    ctx.fillStyle = '#fcd34d';
+    ctx.font = 'bold 34px Quicksand, Rajdhani, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🏁 META · AGENDAR REUNIÓN', w / 2, h / 2 - 10);
+
+    ctx.fillStyle = '#fdf8ee';
+    ctx.font = '600 20px Quicksand, Inter, sans-serif';
+    ctx.fillText('CONECTAR CON GOOGLE CALENDAR DE PEDRO', w / 2, h / 2 + 22);
+
+    var tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    return tex;
+  }
+
+  function makeCheckeredStripTexture() {
+    var w = 256, h = 64;
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    var sq = 16;
+    for (var y = 0; y < h; y += sq) {
+      for (var x = 0; x < w; x += sq) {
+        var even = (((x / sq) + (y / sq)) % 2) === 0;
+        ctx.fillStyle = even ? '#fdf8ee' : '#1e242b';
+        ctx.fillRect(x, y, sq, sq);
+      }
+    }
+    var tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    return tex;
+  }
+
+  // Arco de Meta 3D estilo Studio Ghibli al final del circuito
+  function buildFinishLineArch(scene, toonMat) {
+    var finishAngle = Math.PI * 1.84;
+    var fx = Math.sin(finishAngle) * CIRCUIT_RADIUS;
+    var fz = Math.cos(finishAngle) * CIRCUIT_RADIUS;
+    var fy = roadCenterHeightAtAngle(finishAngle);
+
+    // Orientación tangente a la ruta en ese punto
+    var tangentYaw = finishAngle + Math.PI / 2;
+
+    var archGroup = new THREE.Group();
+    archGroup.position.set(fx, fy, fz);
+    archGroup.rotation.y = tangentYaw;
+
+    var woodRedMat = toonMat(0xc83e31);
+    var darkWoodMat = toonMat(0x4a3525);
+    var stoneMat = toonMat(0x8a95a5);
+    var goldMat = toonMat(0xf59e0b, { emissive: 0xf59e0b, emissiveIntensity: 0.25 });
+
+    // Columnas laterales fuera del asfalto (a +/- 3.65m del centro de la ruta)
+    [-3.65, 3.65].forEach(function(sideX) {
+      var basePedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 0.9, 12), stoneMat);
+      basePedestal.position.set(sideX, 0.45, 0);
+      basePedestal.castShadow = true;
+      archGroup.add(basePedestal);
+
+      var pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.30, 5.6, 14), woodRedMat);
+      pillar.position.set(sideX, 3.2, 0);
+      pillar.castShadow = true;
+      archGroup.add(pillar);
+
+      // Farol japonés / Ghibli cálido colgando a cada lado
+      var lantern = new THREE.Mesh(
+        new THREE.SphereGeometry(0.32, 12, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffe599 })
+      );
+      lantern.scale.set(0.85, 1.25, 0.85);
+      lantern.position.set(sideX * 0.78, 4.4, 0);
+      archGroup.add(lantern);
+    });
+
+    // Vigas superiores estilo Torii / Ghibli
+    var topBeam = new THREE.Mesh(new THREE.BoxGeometry(9.2, 0.42, 0.55), darkWoodMat);
+    topBeam.position.set(0, 6.05, 0);
+    topBeam.castShadow = true;
+    archGroup.add(topBeam);
+
+    var subBeam = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.28, 0.42), woodRedMat);
+    subBeam.position.set(0, 5.2, 0);
+    archGroup.add(subBeam);
+
+    // Cartel principal de Meta doble faz
+    var bannerTex = makeFinishBannerTexture();
+    var bannerMat = new THREE.MeshBasicMaterial({ map: bannerTex, side: THREE.DoubleSide });
+    var bannerMesh = new THREE.Mesh(new THREE.PlaneGeometry(6.6, 1.65), bannerMat);
+    bannerMesh.position.set(0, 5.62, 0.3);
+    archGroup.add(bannerMesh);
+
+    var bannerBack = bannerMesh.clone();
+    bannerBack.position.z = -0.3;
+    bannerBack.rotation.y = Math.PI;
+    archGroup.add(bannerBack);
+
+    // Línea de llegada a cuadros sobre el asfalto
+    var stripTex = makeCheckeredStripTexture();
+    var stripMat = new THREE.MeshBasicMaterial({
+      map: stripTex,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4
+    });
+    var stripMesh = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 1.35), stripMat);
+    stripMesh.rotation.x = -Math.PI / 2;
+    stripMesh.position.set(0, 0.05, 0);
+    archGroup.add(stripMesh);
+
+    // Haz de luz dorado vertical y emblema flotante "META"
+    var beamMat = new THREE.MeshBasicMaterial({
+      color: 0xfcd34d,
+      transparent: true,
+      opacity: 0.16,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    var beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.05, 11, 14, 1, true), beamMat);
+    beam.position.set(0, 6.5, 0);
+    archGroup.add(beam);
+
+    var badge = makeLabelSprite('🏁', '#f59e0b');
+    badge.position.set(0, 8.2, 0);
+    archGroup.add(badge);
+
+    var finishStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.45, 0), goldMat);
+    finishStar.position.set(0, 6.8, 0);
+    archGroup.add(finishStar);
+
+    scene.add(archGroup);
+
+    // Agregar colisión solo a los dos pilares laterales para que el centro sea 100% transitable
+    var cosT = Math.cos(tangentYaw), sinT = Math.sin(tangentYaw);
+    [-3.65, 3.65].forEach(function(sx) {
+      OBSTACLES.push({
+        x: fx + sx * cosT,
+        z: fz - sx * sinT,
+        r: 0.55
+      });
+    });
+
+    FINISH_LINE = {
+      pos: new THREE.Vector3(fx, fy, fz),
+      angle: finishAngle,
+      group: archGroup,
+      star: finishStar,
+      dismissed: false
+    };
   }
 
   function addRailPlatform(cx, cz, heading, totalLength, rampLen, width, height) {
@@ -627,6 +803,7 @@ window.WorldBuilder = (function() {
         var rad = Math.hypot(x, z);
         if (rad < 15 || rad > 77) continue;
         if (STATIONS.some(function(s) { return Math.hypot(s.pos.x - x, s.pos.z - z) < 12.5; })) continue;
+        if (FINISH_LINE && Math.hypot(FINISH_LINE.pos.x - x, FINISH_LINE.pos.z - z) < 10) continue;
         if (nearRoute(x, z, 6.8)) continue;
         var h = heightAt(x, z);
         var roll = Math.random();
@@ -734,6 +911,7 @@ window.WorldBuilder = (function() {
     getStations: function() { return STATIONS; },
     getRoutes: function() { return ROUTES; },
     getTreeSpawnPoints: function() { return TREE_SPAWN_POINTS; },
-    getTrickSignPos: function() { return TRICK_SIGN_POS; }
+    getTrickSignPos: function() { return TRICK_SIGN_POS; },
+    getFinishLine: function() { return FINISH_LINE; }
   };
 })();
